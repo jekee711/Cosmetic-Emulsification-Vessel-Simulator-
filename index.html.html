@@ -1,0 +1,3997 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>화장품 O/W·W/O 에멀젼 호모믹서 스케일업 시뮬레이터 V10 (전공정)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
+    background: #0f1320;
+    color: #e2e8f0;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  #app {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    grid-template-rows: 1fr 320px;
+    height: 100vh;
+    gap: 8px;
+    padding: 8px;
+  }
+  #left-panel, #right-panel {
+    grid-row: 1 / 2;
+    background: #1a1f30;
+    border-radius: 8px;
+    padding: 14px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    color: #cbd5e1;
+  }
+  #canvas-wrap {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+    position: relative;
+    background: linear-gradient(180deg, #0a0e1a 0%, #1a1f30 100%);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  #canvas-3d { width: 100%; height: 100%; display: block; }
+  #title-bar {
+    position: absolute; top: 16px; left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+  }
+  #title-bar h1 {
+    font-size: 16px; font-weight: 700;
+    color: #f1f5f9;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  #title-bar .fps {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+  /* V10 — 단계 진행 바 */
+  #phase-bar {
+    position: absolute; bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(15, 19, 32, 0.85);
+    border: 1px solid #2d3548;
+    border-radius: 10px;
+    padding: 8px 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .phase-step {
+    display: flex; flex-direction: column; align-items: center;
+    min-width: 70px;
+    transition: opacity 0.2s;
+    opacity: 0.4;
+  }
+  .phase-step .phase-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #475569; color: #cbd5e1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .phase-step .phase-name {
+    font-size: 10px; color: #94a3b8; font-weight: 500;
+    white-space: nowrap;
+  }
+  .phase-step.active { opacity: 1; }
+  .phase-step.active .phase-num { background: #a78bfa; color: #fff; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3); }
+  .phase-step.active .phase-name { color: #f1f5f9; }
+  .phase-step.completed { opacity: 0.85; }
+  .phase-step.completed .phase-num { background: #10b981; color: #fff; }
+  .phase-step.completed .phase-name { color: #cbd5e1; }
+  .phase-arrow { color: #475569; font-size: 14px; font-weight: 700; }
+
+  /* V10 v4 — 가마 라벨 오버레이 (3D 위에 떠 있는 텍스트) */
+  #tank-labels {
+    position: absolute; top: 80px; left: 0; right: 0;
+    pointer-events: none;
+    height: 0;
+  }
+  .tank-label {
+    position: absolute; top: 0;
+    text-align: center;
+    background: rgba(15, 19, 32, 0.75);
+    border: 1px solid #2d3548;
+    border-radius: 6px;
+    padding: 5px 10px;
+    pointer-events: none;
+  }
+  .tank-label-dissolver { left: 18%; }
+  .tank-label-main { right: 25%; }
+  .tank-label-name {
+    font-size: 12px; font-weight: 700; color: #f1f5f9;
+    margin-bottom: 2px;
+  }
+  .tank-label-status {
+    font-size: 10px; color: #94a3b8;
+  }
+  .tank-label.active {
+    border-color: #a78bfa;
+    background: rgba(76, 51, 156, 0.4);
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
+  }
+  .tank-label.active .tank-label-status {
+    color: #c4b5fd; font-weight: 600;
+  }
+  .tank-label.completed {
+    border-color: #10b981;
+    background: rgba(6, 78, 59, 0.4);
+  }
+  .tank-label.completed .tank-label-status {
+    color: #6ee7b7;
+  }
+
+  /* ───── V10 v2 — 용해조 게이지 (③) ───── */
+  #dissolver-box .gauge-container {
+    display: flex; gap: 14px; margin-top: 6px;
+    flex: 1; align-items: center; justify-content: center;
+  }
+  .gauge-block {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    min-width: 0;
+  }
+  .gauge-label {
+    font-size: 11px; color: #94a3b8; font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .gauge-ring {
+    position: relative;
+    width: 100%; max-width: 110px; aspect-ratio: 1;
+  }
+  .gauge-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge-ring .gauge-bg {
+    fill: none; stroke: #2d3548; stroke-width: 8;
+  }
+  .gauge-ring .gauge-fg {
+    fill: none; stroke: #60a5fa; stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.4s ease, stroke 0.4s;
+  }
+  .gauge-ring.complete .gauge-fg {
+    stroke: #10b981;
+    filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.6));
+  }
+  .gauge-value {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700; color: #f1f5f9;
+  }
+  .gauge-value span { font-size: 12px; color: #94a3b8; margin-left: 2px; font-weight: 500; }
+  .dissolver-status {
+    margin-top: 6px;
+    padding: 4px 8px;
+    background: #0f1320;
+    border: 1px solid #2d3548;
+    border-radius: 5px;
+    font-size: 10px; color: #cbd5e1;
+    text-align: center;
+  }
+
+  /* ───── V10 v2 — 최종 QC 결과 (④) ───── */
+  #qc-box .qc-final-content {
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0;
+    margin-top: 4px;
+  }
+  .qc-big-value {
+    text-align: center;
+    margin-top: 2px;
+    line-height: 1;
+  }
+  .qc-big-value #qc-big-num {
+    font-size: 32px; font-weight: 800;
+    color: #f1f5f9;
+    letter-spacing: -0.5px;
+  }
+  .qc-big-value .qc-big-unit {
+    font-size: 13px; color: #94a3b8;
+    margin-left: 4px; font-weight: 600;
+  }
+  .qc-big-label {
+    text-align: center;
+    font-size: 10px; color: #94a3b8;
+    margin-top: 2px; margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+
+  /* 스펙 범위 막대 */
+  .qc-range-bar {
+    position: relative;
+    height: 28px;
+    margin: 4px 0 8px;
+  }
+  .qc-range-track {
+    position: absolute; top: 10px; left: 0; right: 0;
+    height: 6px;
+    background: #2d3548;
+    border-radius: 3px;
+  }
+  .qc-range-spec {
+    position: absolute; top: 10px;
+    height: 6px;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  }
+  .qc-range-marker {
+    position: absolute; top: 5px;
+    width: 4px; height: 16px;
+    background: #f1f5f9;
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+    transition: left 0.4s ease;
+  }
+  .qc-range-marker.in-spec { background: #10b981; }
+  .qc-range-marker.out-spec { background: #ef4444; }
+  .qc-range-labels {
+    position: absolute; top: 22px; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: #94a3b8;
+  }
+
+  /* 3개 미니 지표 */
+  .qc-mini-row {
+    display: flex; gap: 6px;
+    margin: 6px 0;
+  }
+  .qc-mini {
+    flex: 1;
+    background: #0f1320;
+    border: 1px solid #2d3548;
+    border-radius: 6px;
+    padding: 5px 4px;
+    text-align: center;
+    min-width: 0;
+  }
+  .qc-mini-label {
+    font-size: 9px; color: #94a3b8;
+    margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .qc-mini-val {
+    font-size: 12px; font-weight: 700; color: #f1f5f9;
+    margin-bottom: 2px;
+  }
+  .qc-mini-mark {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #475569; color: #94a3b8;
+    margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .qc-mini-mark.pass { background: #10b981; color: #fff; box-shadow: 0 0 4px rgba(16, 185, 129, 0.6); }
+  .qc-mini-mark.fail { background: #ef4444; color: #fff; }
+
+  /* PASS/FAIL 도장 */
+  .qc-verdict-stamp {
+    margin-top: auto;
+    padding: 10px;
+    text-align: center;
+    font-size: 16px; font-weight: 800;
+    letter-spacing: 1px;
+    border: 2px solid #475569;
+    border-radius: 8px;
+    color: #94a3b8;
+    background: rgba(15, 19, 32, 0.5);
+    text-transform: uppercase;
+  }
+  .qc-verdict-stamp.pass {
+    color: #10b981; border-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  }
+  .qc-verdict-stamp.fail {
+    color: #ef4444; border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+  .qc-verdict-stamp.review {
+    color: #fbbf24; border-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+  }
+  /* 차트 영역 — 가로 전체 */
+  #charts {
+    grid-column: 1 / 4;     /* 좌측 패널부터 우측 패널 끝까지 */
+    grid-row: 2 / 3;
+    background: #1a1f30;
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  .chart-box { 
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .chart-box h3 {
+    font-size: 14px;
+    color: #f1f5f9;
+    font-weight: 600;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+  .chart-box .chart-sub {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+  .chart-box canvas {
+    width: 100% !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  /* 섹션 */
+  .section {
+    margin-bottom: 11px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid #2d3548;
+  }
+  .section:last-child { border-bottom: none; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .section-header .chev {
+    font-size: 9px;
+    color: #64748b;
+    transition: transform 0.2s;
+  }
+  .section.collapsed .chev { transform: rotate(-90deg); }
+  .section.collapsed .section-body { display: none; }
+
+  .info-row {
+    margin-bottom: 6px;
+  }
+  .info-row .label {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+  .info-row .value-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid #2d3548;
+    padding-bottom: 3px;
+  }
+  .info-row .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f1f5f9;
+  }
+  .info-row .unit {
+    font-size: 10px;
+    color: #64748b;
+  }
+
+  /* 가마 버튼 */
+  .vessel-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .vessel-btn {
+    padding: 10px 4px;
+    background: #2d3548;
+    border: 1px solid #3d4660;
+    border-radius: 4px;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .vessel-btn:hover { background: #3d4660; }
+  .vessel-btn.active {
+    background: #4263eb;
+    color: #fff;
+    border-color: #4263eb;
+  }
+
+  /* 슬라이더 */
+  .slider-block { margin-bottom: 8px; }
+  .slider-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 3px;
+  }
+  .slider-label-row .name {
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+  .slider-label-row .val {
+    font-size: 12px;
+    font-weight: 600;
+    color: #60a5fa;
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    background: #2d3548;
+    border-radius: 2px;
+    outline: none;
+    accent-color: #60a5fa;
+  }
+  /* 배합 슬라이더 색상 */
+  .ingr-aqueous input[type="range"] { accent-color: #0ea5e9; }
+  .ingr-oil input[type="range"] { accent-color: #f59e0b; }
+
+  /* 토글 */
+  .toggle-switch {
+    display: flex;
+    background: #2d3548;
+    border-radius: 12px;
+    padding: 2px;
+  }
+  .toggle-switch button {
+    flex: 1;
+    padding: 5px 6px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 10px;
+  }
+  .toggle-switch button.active {
+    background: #4263eb;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* 액션 버튼 */
+  .action-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .action-btn {
+    padding: 9px;
+    background: #2d3548;
+    border: 1px solid #3d4660;
+    border-radius: 5px;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .action-btn:hover { background: #3d4660; }
+  .action-btn.primary {
+    background: #4263eb;
+    color: #fff;
+    border-color: #4263eb;
+  }
+  .action-btn.primary:hover { background: #364fc7; }
+  .action-btn.recommend {
+    background: #10b981;
+    color: #fff;
+    border-color: #10b981;
+  }
+
+  /* 범례 */
+  #legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(26,31,48,0.92);
+    backdrop-filter: blur(6px);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  #legend .item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 2px 0;
+  }
+  #legend .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+  }
+
+  /* 품질 배지 */
+  .quality-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .achievement-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .achievement-btn {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #3d4660;
+    background: #2d3548;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .achievement-btn.pass {
+    background: #064e3b;
+    color: #6ee7b7;
+    border-color: #10b981;
+  }
+  .achievement-btn.fail {
+    background: #7f1d1d;
+    color: #fca5a5;
+    border-color: #ef4444;
+  }
+
+  /* 환경 (온도·시간) 박스 */
+  .env-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+    background: #2d3548;
+    border-radius: 5px;
+  }
+  .env-item .env-label {
+    font-size: 10px;
+    color: #94a3b8;
+  }
+  .env-item .env-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  .env-item .env-unit {
+    font-size: 9px;
+    color: #64748b;
+  }
+
+  /* 작은 footer */
+  .footnote {
+    font-size: 9px;
+    color: #64748b;
+    text-align: center;
+    margin-top: 6px;
+  }
+
+  /* 배합 토탈 표시 */
+  .total-display {
+    font-size: 11px;
+    text-align: right;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+  .total-display .pct {
+    font-weight: 700;
+    color: #60a5fa;
+    font-size: 13px;
+  }
+  .total-display.over { color: #fca5a5; }
+  .total-display.over .pct { color: #fca5a5; }
+
+  /* 차트 ring (검증 여부) */
+  .chart-status {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+    background: #64748b;
+  }
+  .chart-status.match { background: #10b981; }
+  .chart-status.mismatch { background: #f59e0b; }
+
+  /* ─── 제형 타입 토글 (O/W vs W/O) ─── */
+  .type-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .type-btn {
+    padding: 14px 8px;
+    border-radius: 6px;
+    border: 2px solid #2d3548;
+    background: #1f2536;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .type-btn:hover {
+    border-color: #3d4660;
+  }
+  .type-btn.active {
+    border-color: #60a5fa;
+    background: #1e3a5f;
+  }
+  .type-btn .type-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 3px;
+  }
+  .type-btn .type-desc {
+    font-size: 9px;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+  .type-btn.active.ow { border-color: #60a5fa; }
+  .type-btn.active.wo { border-color: #fbbf24; }
+  .type-btn.active.ow .type-name { color: #93c5fd; }
+  .type-btn.active.wo .type-name { color: #fcd34d; }
+
+  /* ─── 검증 표 ─── */
+  .validation-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-top: 6px;
+  }
+  .validation-table th {
+    background: #2d3548;
+    color: #cbd5e1;
+    padding: 6px 4px;
+    font-weight: 600;
+    border-bottom: 1px solid #3d4660;
+  }
+  .validation-table td {
+    padding: 5px 4px;
+    border-bottom: 1px solid #2d3548;
+    color: #cbd5e1;
+    text-align: center;
+  }
+  .validation-table tbody tr.current {
+    background: #1e3a5f;
+  }
+  .validation-table tbody tr.current td {
+    color: #f1f5f9;
+    font-weight: 600;
+  }
+  .validation-table .empty-cell {
+    color: #475569;
+    font-style: italic;
+  }
+  .validation-table input.measure-input {
+    width: 100%;
+    padding: 3px 4px;
+    background: #2d3548;
+    border: 1px solid #3d4660;
+    border-radius: 3px;
+    color: #cbd5e1;
+    font-size: 9px;
+    text-align: center;
+  }
+  .validation-table input.measure-input:focus {
+    outline: 1px solid #60a5fa;
+  }
+  .table-status {
+    text-align: center;
+    padding: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 3px;
+  }
+  .table-status.pass {
+    background: #064e3b;
+    color: #6ee7b7;
+  }
+  .table-status.fail {
+    background: #7f1d1d;
+    color: #fca5a5;
+  }
+  .table-status.pending {
+    background: #2d3548;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ━━━━━━━━━━ 좌측 패널 ━━━━━━━━━━ -->
+  <div id="left-panel">
+
+    <!-- ── 0. 제형 타입 선택 (최상단) ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>제형 타입 (Emulsion Type)</span>
+      </div>
+      <div class="type-toggle">
+        <button class="type-btn ow active" data-type="OW">
+          <div class="type-name">O/W</div>
+          <div class="type-desc">외상: 물 (Aqueous)<br>내상: 오일</div>
+        </button>
+        <button class="type-btn wo" data-type="WO">
+          <div class="type-name">W/O</div>
+          <div class="type-desc">외상: 오일<br>내상: 물 (Aqueous)</div>
+        </button>
+      </div>
+      <div class="footnote" id="type-info" style="text-align:left; margin-top:4px;">
+        O/W: 수상 ↑ → 점도 ↓ / 유상 ↑ → 점도 ↑, 깨질 위험
+      </div>
+    </div>
+
+    <!-- V10 — 공정 진행 모드 -->
+    <div class="section">
+      <div class="section-header"><span>공정 진행 모드</span></div>
+      <div class="type-toggle" style="margin-bottom:6px;">
+        <button class="type-btn active" data-mode="auto" id="mode-auto" style="font-size:11px; padding:6px;">
+          <div class="type-name">자동 진행</div>
+          <div class="type-desc">5단계 자동 시퀀스</div>
+        </button>
+        <button class="type-btn" data-mode="manual" id="mode-manual" style="font-size:11px; padding:6px;">
+          <div class="type-name">수동 진행</div>
+          <div class="type-desc">사용자 RPM 조정</div>
+        </button>
+      </div>
+      <button id="btn-next-phase" style="width:100%; padding:6px; margin-top:4px; background:#a78bfa; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer; display:none;">▶ 다음 단계로</button>
+    </div>
+
+    <!-- V10 v2 — 출하 QC 스펙 (사용자 직접 입력) -->
+    <div class="section">
+      <div class="section-header"><span>출하 QC 스펙 (사용자 설정)</span></div>
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <button class="qc-mode-btn active" data-qcmode="viscosity" id="qc-mode-visc"
+                style="flex:1; padding:5px; background:#1f2937; color:#e5e7eb; border:1px solid #2d3548; border-radius:4px; font-size:11px; cursor:pointer;">
+          점도 (cps)
+        </button>
+        <button class="qc-mode-btn" data-qcmode="hardness" id="qc-mode-hard"
+                style="flex:1; padding:5px; background:#0f1320; color:#94a3b8; border:1px solid #2d3548; border-radius:4px; font-size:11px; cursor:pointer;">
+          경도 (mm)
+        </button>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
+        <span style="font-size:10px; color:#94a3b8; min-width:30px;">최소</span>
+        <input type="number" id="qc-min-input" value="15000" min="0" step="100"
+               style="flex:1; padding:5px; background:#0f1320; color:#f1f5f9; border:1px solid #2d3548; border-radius:4px; font-size:11px;">
+        <span class="qc-input-unit" id="qc-min-unit" style="font-size:10px; color:#94a3b8; min-width:20px;">cps</span>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+        <span style="font-size:10px; color:#94a3b8; min-width:30px;">최대</span>
+        <input type="number" id="qc-max-input" value="40000" min="0" step="100"
+               style="flex:1; padding:5px; background:#0f1320; color:#f1f5f9; border:1px solid #2d3548; border-radius:4px; font-size:11px;">
+        <span class="qc-input-unit" id="qc-max-unit" style="font-size:10px; color:#94a3b8; min-width:20px;">cps</span>
+      </div>
+      <div class="footnote" style="text-align:left; margin-top:5px;" id="qc-spec-info">
+        측정: Brookfield S4·12rpm
+      </div>
+    </div>
+
+    <!-- ── 1. 설비 기본정보 ── -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>설비 기본정보</span><span class="chev">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="info-row">
+          <div class="label">총 체적</div>
+          <div class="value-line">
+            <span class="value" id="info-volume">500.00</span>
+            <span class="unit">리터 (L)</span>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="label">호모 / 최대 회전수</div>
+          <div class="value-line">
+            <span class="value">3,500</span>
+            <span class="unit">rpm</span>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="label">패들 / 최대 회전수</div>
+          <div class="value-line">
+            <span class="value">25</span>
+            <span class="unit">rpm</span>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="label">스크래퍼 / 최대 회전수</div>
+          <div class="value-line">
+            <span class="value">25</span>
+            <span class="unit">rpm</span>
+          </div>
+        </div>
+        <!-- V12: 시각화용 입자 개수 (좌측 설비 정보로 이동) -->
+        <div class="slider-block" style="margin-top:6px;">
+          <div class="slider-label-row">
+            <span class="name">가마 입자 개수 (시각화)</span>
+            <span class="val" id="particle-count-val">2500</span>
+          </div>
+          <input type="range" id="particle-count" min="500" max="6000" step="100" value="2500">
+          <div class="footnote" style="text-align:left;">3D 화면에만 영향 · 계산에는 무관</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 2. 가마 선택 ── -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>가마 선택 (3종)</span><span class="chev">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="vessel-buttons" id="vessel-buttons">
+          <button class="vessel-btn" data-vessel="V-100">100L</button>
+          <button class="vessel-btn" data-vessel="V-300">300L</button>
+          <button class="vessel-btn active" data-vessel="V-500">500L</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 3. 배합 (확장) ── -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>배합 — 수상 (Aqueous)</span><span class="chev">▼</span>
+      </div>
+      <div class="section-body" id="aqueous-body">
+        <div class="ingr-aqueous">
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">정제수</span><span class="val" data-ing="aq-water">40</span></div>
+            <input type="range" data-ing="aq-water" min="0" max="60" step="1" value="40">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">유화제 (수용성)</span><span class="val" data-ing="aq-emul">3</span></div>
+            <input type="range" data-ing="aq-emul" min="0" max="10" step="0.5" value="3">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">보습제 (글리세린 등)</span><span class="val" data-ing="aq-humec">5</span></div>
+            <input type="range" data-ing="aq-humec" min="0" max="15" step="0.5" value="5">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">방부제</span><span class="val" data-ing="aq-pres">1</span></div>
+            <input type="range" data-ing="aq-pres" min="0" max="3" step="0.1" value="1">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">파우더 (수상 분산)</span><span class="val" data-ing="aq-powd">3</span></div>
+            <input type="range" data-ing="aq-powd" min="0" max="10" step="0.5" value="3">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">자외선차단제 (수상)</span><span class="val" data-ing="aq-uv">8</span></div>
+            <input type="range" data-ing="aq-uv" min="0" max="15" step="0.5" value="8">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 유상 ── -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>배합 — 유상 (Oil)</span><span class="chev">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="ingr-oil">
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">오일 (스쿠알란 등)</span><span class="val" data-ing="oi-oil">10</span></div>
+            <input type="range" data-ing="oi-oil" min="0" max="25" step="0.5" value="10">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">유화제 (지용성)</span><span class="val" data-ing="oi-emul">3</span></div>
+            <input type="range" data-ing="oi-emul" min="0" max="10" step="0.5" value="3">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">왁스</span><span class="val" data-ing="oi-wax">2</span></div>
+            <input type="range" data-ing="oi-wax" min="0" max="8" step="0.5" value="2">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">파우더 (유상 분산)</span><span class="val" data-ing="oi-powd">5</span></div>
+            <input type="range" data-ing="oi-powd" min="0" max="15" step="0.5" value="5">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">분산제</span><span class="val" data-ing="oi-disp">2</span></div>
+            <input type="range" data-ing="oi-disp" min="0" max="6" step="0.2" value="2">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">자외선차단제 (유상)</span><span class="val" data-ing="oi-uv">15</span></div>
+            <input type="range" data-ing="oi-uv" min="0" max="25" step="0.5" value="15">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label-row"><span class="name">기타 첨가제</span><span class="val" data-ing="oi-misc">2</span></div>
+            <input type="range" data-ing="oi-misc" min="0" max="5" step="0.2" value="2">
+          </div>
+        </div>
+        <div class="total-display" id="total-display">
+          총합: <span class="pct" id="total-pct">99.0</span> % / 100
+        </div>
+      </div>
+    </div>
+
+    <!-- ── V14: 점증제 농도 (배합 칸) ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>점증제 농도</span>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label-row">
+          <span class="name">점증제 농도</span>
+          <span class="val" id="thickener-val">0.5</span>
+        </div>
+        <input type="range" id="thickener" min="0" max="2" step="0.1" value="0.5">
+        <div class="footnote" style="text-align:left;">0 ~ 2 wt%  ·  분포·점도 계산에 모두 반영</div>
+      </div>
+    </div>
+
+    <!-- ── V12: 환경 / 공정 조건 (좌측으로 이동) ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>환경 / 공정 조건</span>
+      </div>
+      <div class="env-box">
+        <div class="env-item">
+          <div class="env-label">현재 온도</div>
+          <div class="env-value" id="env-temp">75</div>
+          <div class="env-unit">℃</div>
+        </div>
+        <div class="env-item">
+          <div class="env-label">유화 시간</div>
+          <div class="env-value" id="env-time">0</div>
+          <div class="env-unit">분</div>
+        </div>
+      </div>
+      <div class="slider-block" style="margin-top:8px;">
+        <div class="slider-label-row"><span class="name">설정 온도</span><span class="val" id="set-temp-val">75</span></div>
+        <input type="range" id="set-temp" min="20" max="85" step="1" value="75">
+        <div class="footnote" style="text-align:left;">20℃(냉각) ~ 85℃(가온)</div>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label-row"><span class="name">목표 유화 시간</span><span class="val" id="target-time-val">15</span></div>
+        <input type="range" id="target-time" min="5" max="60" step="1" value="15">
+        <div class="footnote" style="text-align:left;">5 ~ 60분</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ━━━━━━━━━━ 가운데 캔버스 ━━━━━━━━━━ -->
+  <div id="canvas-wrap">
+    <canvas id="canvas-3d"></canvas>
+    <div id="title-bar">
+      <h1 id="vessel-title">P2-UHM500L-1</h1>
+      <div class="fps" id="fps-display">60 FPS</div>
+      <!-- V10 v4 — 큰 단계 라벨 -->
+      <div id="phase-label-big" style="margin-top:8px; font-size:14px; font-weight:600; color:#a78bfa; text-shadow:0 1px 3px rgba(0,0,0,0.7); pointer-events:none;">
+        대기 중
+      </div>
+    </div>
+    <!-- V10 — 단계 진행 바 -->
+    <div id="phase-bar">
+      <div class="phase-step" data-phase="1">
+        <div class="phase-num">1</div><div class="phase-name">수상 분산</div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase-step" data-phase="2">
+        <div class="phase-num">2</div><div class="phase-name">유상 분산</div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase-step" data-phase="3">
+        <div class="phase-num">3</div><div class="phase-name">유화</div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase-step" data-phase="4">
+        <div class="phase-num">4</div><div class="phase-name">1차 냉각 + 재분산</div>
+      </div>
+      <div class="phase-arrow">→</div>
+      <div class="phase-step" data-phase="5">
+        <div class="phase-num">5</div><div class="phase-name">2차 냉각 + QC</div>
+      </div>
+    </div>
+    <div id="legend">
+      <div class="item"><div class="swatch" style="background:#66d9ff;"></div>수상 (Aqueous)</div>
+      <div class="item"><div class="swatch" style="background:#ffc84d;"></div>유상 (Oil)</div>
+      <div class="item"><div class="swatch" style="background:#fff5d6; border:1px solid #555;"></div>유화 진행됨</div>
+    </div>
+    <!-- V10 v4 — 가마 라벨 (위치 고정) -->
+    <div id="tank-labels">
+      <div class="tank-label tank-label-dissolver" id="label-dissolver">
+        <div class="tank-label-name">용해조</div>
+        <div class="tank-label-status" id="label-dissolver-sub">대기</div>
+      </div>
+      <div class="tank-label tank-label-main" id="label-main">
+        <div class="tank-label-name">메인 가마</div>
+        <div class="tank-label-status" id="label-main-sub">대기</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━━━━━━━━━ 우측 패널 ━━━━━━━━━━ -->
+  <div id="right-panel">
+
+    <!-- ── 1. RPM 운용 ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>믹서 운용</span>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label-row"><span class="name">호모 회전수</span><span class="val" id="rpm-homo-val">2000</span></div>
+        <input type="range" id="rpm-homo" min="0" max="3500" step="50" value="2000">
+        <div class="footnote" style="text-align:right;">최대 3,500 rpm</div>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label-row"><span class="name">패들 회전수</span><span class="val" id="rpm-paddle-val">15</span></div>
+        <input type="range" id="rpm-paddle" min="0" max="25" step="1" value="15">
+        <div class="footnote" style="text-align:right;">최대 25 rpm</div>
+      </div>
+      <div class="slider-block">
+        <div class="slider-label-row"><span class="name">스크래퍼 회전수</span><span class="val" id="rpm-scraper-val">15</span></div>
+        <input type="range" id="rpm-scraper" min="0" max="25" step="1" value="15">
+        <div class="footnote" style="text-align:right;">최대 25 rpm</div>
+      </div>
+      <div class="info-row" style="margin-top:8px;">
+        <div class="label">평균 ε (에너지 소산율)
+          <span style="display:block; font-size:9px; color:#94a3b8; font-weight:400;">호모 회전수로 액적에 가해지는 힘 — 높을수록 잘 깨짐</span>
+        </div>
+        <div class="value-line">
+          <span class="value" id="info-eps" style="font-size:13px;">3.74</span>
+          <span class="unit">W/kg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 3. 시뮬 제어 ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>시뮬레이션 제어</span>
+      </div>
+      <div class="action-buttons">
+        <button class="action-btn primary" id="btn-start">▶ 시작</button>
+        <button class="action-btn" id="btn-reset">↻ 리셋</button>
+        <button class="action-btn recommend" id="btn-nopt">권장 RPM</button>
+        <button class="action-btn" id="btn-snapshot">📷 캡처</button>
+      </div>
+      <div class="slider-block" style="margin-top:6px;">
+        <div class="slider-label-row"><span class="name">시뮬 속도 배율</span><span class="val" id="speed-val">1×</span></div>
+        <div class="toggle-switch" style="margin-top:4px;" id="speed-toggle">
+          <button class="active" data-speed="1">1×</button>
+          <button data-speed="5">5×</button>
+          <button data-speed="20">20×</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 4. 결과물 / 품질 (V12 재정리) ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>유화 품질 결과</span>
+      </div>
+
+      <!-- 최종 품질 도장 -->
+      <div class="info-row" style="margin-top:2px;">
+        <div class="label">유화 품질</div>
+        <div style="margin-top:4px;">
+          <span class="quality-badge" id="info-quality" style="background:#94a3b8;">초기 상태</span>
+        </div>
+      </div>
+
+      <!-- D32 + 적합 기준 -->
+      <div class="info-row" style="margin-top:10px;">
+        <div class="label">유화입자 크기 D₃₂
+          <span style="display:block; font-size:9px; color:#94a3b8; font-weight:400;">평균 액적 지름 · 작을수록 안정적</span>
+        </div>
+        <div class="value-line">
+          <span class="value" id="info-d32">109.0</span>
+          <span class="unit">μm</span>
+        </div>
+      </div>
+      <div class="d32-range-bar" style="margin:4px 0 8px 0; padding:5px 8px; background:#0f1320; border:1px solid #2d3548; border-radius:4px;">
+        <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">적합 범위 (일반 크림 기준)</div>
+        <div style="display:flex; gap:2px; font-size:9px;">
+          <span style="flex:1; text-align:center; color:#06b6d4; padding:2px;">≤20 μm<br/>매우 미세</span>
+          <span style="flex:1; text-align:center; color:#10b981; padding:2px; background:#1f3a2d; border-radius:2px;">20–35 μm<br/><b>적합</b></span>
+          <span style="flex:1; text-align:center; color:#fbbf24; padding:2px;">35–50 μm<br/>주의</span>
+          <span style="flex:1; text-align:center; color:#f59e0b; padding:2px;">≥50 μm<br/>분리 위험</span>
+        </div>
+      </div>
+
+      <!-- H-Index + 의미 -->
+      <div class="info-row">
+        <div class="label">분포 균일도 (H-Index)
+          <span style="display:block; font-size:9px; color:#94a3b8; font-weight:400;">입자 크기가 얼마나 고른지 · ≥80% 권장</span>
+        </div>
+        <div class="value-line">
+          <span class="value" id="info-hindex">0.0</span>
+          <span class="unit">%</span>
+        </div>
+      </div>
+
+      <!-- V11b: 크리밍 지수 (PBM 모드일 때만 표시) -->
+      <div class="info-row" id="pbm-cream-row" style="display:none;">
+        <div class="label">크리밍 지수 <span style="font-size:9px; color:#94a3b8;">(분리 경향·참고)</span>
+          <span style="display:block; font-size:9px; color:#94a3b8; font-weight:400;">큰 액적이 떠오르려는 정도 · 낮을수록 안정</span>
+        </div>
+        <div class="value-line">
+          <span class="value" id="pbm-cream">-</span>
+          <span class="unit">상대</span>
+        </div>
+      </div>
+
+      <!-- V13: 공정 점도·비중 화면 표시 제거 (백그라운드 계산은 유지) -->
+      <div class="achievement-row">
+        <button class="achievement-btn" id="btn-pass">✓ 달성</button>
+        <button class="achievement-btn" id="btn-fail">✕ 미달성</button>
+      </div>
+    </div>
+
+    <!-- ── 5. 시각화 + 데이터 ── -->
+    <div class="section">
+      <div class="section-header">
+        <span>시각화 / 데이터</span>
+      </div>
+      <div class="action-buttons">
+        <button class="action-btn" id="btn-csv">📊 CSV 저장</button>
+        <button class="action-btn" id="btn-rec-toggle">● 녹화</button>
+      </div>
+      <div class="footnote" id="rec-status">대기 중</div>
+    </div>
+
+  </div>
+
+  <!-- ━━━━━━━━━━ 하단 차트 (4개) — V13 ━━━━━━━━━━ -->
+  <div id="charts">
+    <!-- ① 용해도 / 분산도 (시작 단계 진행) — 시뮬을 켜자마자 채워지는 게이지 -->
+    <div class="chart-box" id="dissolver-box">
+      <h3 id="dissolver-title">용해도 / 분산도</h3>
+      <div class="chart-sub" id="dissolver-subtitle">대기 중 — 단계 1·2에서 활성화</div>
+      <div class="gauge-container">
+        <div class="gauge-block">
+          <div class="gauge-label">용해도</div>
+          <div class="gauge-ring" id="ring-dissolution">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"></circle>
+              <circle class="gauge-fg" id="circle-dissolution" cx="50" cy="50" r="42"
+                      style="stroke-dasharray: 263.9; stroke-dashoffset: 263.9;"></circle>
+            </svg>
+            <div class="gauge-value" id="val-dissolution">0<span>%</span></div>
+          </div>
+        </div>
+        <div class="gauge-block">
+          <div class="gauge-label">분산도</div>
+          <div class="gauge-ring" id="ring-dispersion">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"></circle>
+              <circle class="gauge-fg" id="circle-dispersion" cx="50" cy="50" r="42"
+                      style="stroke-dasharray: 263.9; stroke-dashoffset: 263.9;"></circle>
+            </svg>
+            <div class="gauge-value" id="val-dispersion">0<span>%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="dissolver-status" id="dissolver-status">📋 단계 1: 메인 가마 수상 분산 대기</div>
+    </div>
+
+    <!-- ② 입자 크기 분포 (DSD) — 유화 단계에서 분포가 잡힘 -->
+    <div class="chart-box">
+      <h3>입자 크기 분포 (DSD)</h3>
+      <div class="chart-sub">시간별 정규화 분포 — 좁아질수록 균일</div>
+      <canvas id="chart-dsd"></canvas>
+    </div>
+
+    <!-- ③ D₃₂ + H-Index — 시간 따라 평균 크기·균일도 추세 -->
+    <div class="chart-box">
+      <h3><span class="chart-status" id="status-d32"></span>D₃₂ + 혼합 균일도</h3>
+      <div class="chart-sub">파란선=D₃₂(좌축μm) / 보라선=H-Index(우축%)</div>
+      <canvas id="chart-d32"></canvas>
+    </div>
+
+    <!-- ④ 최종 QC 결과 -->
+    <div class="chart-box" id="qc-box">
+      <h3>최종 품질 판정 (출하 시)</h3>
+      <div class="chart-sub" id="qc-subtitle">[5]단계 진입 시 자동 측정</div>
+      <div class="qc-final-content">
+        <!-- 큰 점도/경도 값 표시 -->
+        <div class="qc-big-value">
+          <span id="qc-big-num">- - -</span>
+          <span class="qc-big-unit" id="qc-big-unit">cps</span>
+        </div>
+        <div class="qc-big-label" id="qc-big-label">출하 점도</div>
+
+        <!-- 스펙 범위 막대 -->
+        <div class="qc-range-bar">
+          <div class="qc-range-track"></div>
+          <div class="qc-range-spec" id="qc-range-spec"></div>
+          <div class="qc-range-marker" id="qc-range-marker"></div>
+          <div class="qc-range-labels">
+            <span id="qc-range-min">0</span>
+            <span id="qc-range-max">100</span>
+          </div>
+        </div>
+
+        <!-- 3가지 지표 동시 -->
+        <div class="qc-mini-row">
+          <div class="qc-mini">
+            <div class="qc-mini-label">D₃₂</div>
+            <div class="qc-mini-val" id="qc-mini-d32">- μm</div>
+            <div class="qc-mini-mark" id="qc-mini-d32-mark">·</div>
+          </div>
+          <div class="qc-mini">
+            <div class="qc-mini-label">H-Index</div>
+            <div class="qc-mini-val" id="qc-mini-hidx">- %</div>
+            <div class="qc-mini-mark" id="qc-mini-hidx-mark">·</div>
+          </div>
+          <div class="qc-mini">
+            <div class="qc-mini-label" id="qc-mini-metric-label">점도</div>
+            <div class="qc-mini-val" id="qc-mini-metric">-</div>
+            <div class="qc-mini-mark" id="qc-mini-metric-mark">·</div>
+          </div>
+        </div>
+
+        <!-- 큰 PASS/FAIL 도장 -->
+        <div class="qc-verdict-stamp" id="qc-verdict-stamp">대기</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const VESSELS = {
+  'V-100':  { code: 'P2-UHM100L-1',  volume_L: 100,  D_v: 0.5031, H: 0.5031, D_imp: 0.0503 },
+  'V-300':  { code: 'P2-UHM300L-1',  volume_L: 300,  D_v: 0.7256, H: 0.7256, D_imp: 0.0726 },
+  'V-500':  { code: 'P2-UHM500L-1',  volume_L: 500,  D_v: 0.8603, H: 0.8603, D_imp: 0.0860, isRef: true },
+};
+
+/* ─── 배합 (성분별 부피분율) ─── */
+const formulation = {
+  // 수상 (sub-total ≈ 60)
+  'aq-water': 40, 'aq-emul': 3, 'aq-humec': 5, 'aq-pres': 1, 'aq-powd': 3, 'aq-uv': 8,
+  // 유상 (sub-total ≈ 39)
+  'oi-oil': 10, 'oi-emul': 3, 'oi-wax': 2, 'oi-powd': 5, 'oi-disp': 2, 'oi-uv': 15, 'oi-misc': 2,
+};
+function getAqueousTotal() {
+  return ['aq-water','aq-emul','aq-humec','aq-pres','aq-powd','aq-uv'].reduce((s,k)=>s+formulation[k],0);
+}
+function getOilTotal() {
+  return ['oi-oil','oi-emul','oi-wax','oi-powd','oi-disp','oi-uv','oi-misc'].reduce((s,k)=>s+formulation[k],0);
+}
+
+const Physics = {
+  /* ε̄ — Rushton 식 (호모만 기여) */
+  calcEpsilon(N_homo_rpm, vessel) {
+    const Np = 2.0;
+    const N_rps = N_homo_rpm / 60;
+    return Np * Math.pow(N_rps, 3) * Math.pow(vessel.D_imp, 5) / (vessel.volume_L * 1e-3);
+  },
+  /* 등-ε 권장 RPM */
+  calcRecommendedRPM(vessel, refVessel = VESSELS['V-500'], N_ref = 2000) {
+    return N_ref * Math.pow(refVessel.volume_L / vessel.volume_L, 2/9);
+  },
+  /* D32 평형값 (Calabrese) */
+  calcD32Equilibrium(epsilon, sigma_mNm, phi_d, T_C) {
+    const sigma = sigma_mNm * 1e-3;     // mN/m → N/m
+    const rho_c = 1050;
+    // 온도 보정 (가온 시 σ ↓, μ ↓ → D32 ↓)
+    const T_factor = 1 + (T_C - 75) * 0.002;
+    const C = 0.06 * (1 + 0.5 * phi_d);
+    const D_imp = 0.086;
+    const N_rps = Math.cbrt(Math.max(epsilon, 0.01) * 0.5);
+    const We = (rho_c * Math.pow(N_rps, 2) * Math.pow(D_imp, 3)) / (sigma * T_factor);
+    const D_eq_m = C * D_imp * Math.pow(Math.max(We, 1), -0.6);
+    return Math.max(15, Math.min(150, D_eq_m * 1e6));
+  },
+  /* 시간 진화 (1차 완화) */
+  calcD32Evolution(D_eq_um, dt, currentD32, epsilon) {
+    const tau = 30 / Math.max(epsilon, 0.05);
+    return Math.max(15, currentD32 + (D_eq_um - currentD32) * dt / tau);
+  },
+  /* 점도 (Pal-Rhodes + 온도 보정 + O/W vs W/O 거동) */
+  /* V14 — 점도 모델 전체 재설계.
+     기존 Pal-Rhodes는 묽은 에멀젼용이라 화장품 크림 영역(>30% 내상)에서
+     phi_eff가 천장에 막혀 비현실적 값을 냈음. 화장품 실측 범위
+     (묽은 로션 ≤8,000 cps / 일반 크림 15,000~40,000 / 고점도 ≥40,000)
+     에 맞춰 곱셈 모델로 단순화.
+
+     출력: mu_75C [Pa·s] — 기존 호출부 호환 위해 단위 유지.
+     실제 cps 환산은 calcViscosity_cps_at30C에서 처리. */
+  calcViscosity(D32_um, phi_d, T_C, emulsionType = 'OW', thickener_wt = 0) {
+    /* 목표 cps 곡선을 75℃ Pa·s 값으로 역환산 (cps ÷ tempFac ÷ 1000) */
+    const tempFac_30 = 2.2;                              // 75→30℃ 환산 계수
+    const base_cps = 2000;                               // 점증제 0wt% 기준점
+
+    // ① 점증제 효과 — 가장 큰 영향 (slider 0~2wt%)
+    const tFac = 1 + 14 * thickener_wt + 1.5 * thickener_wt * thickener_wt;
+    // ② 내상 비율 효과 (O/W는 phi_d, W/O는 1-phi_d)
+    const phi_internal = emulsionType === 'WO' ? (1 - phi_d) : phi_d;
+    const pFac = 0.4 + 1.7 * phi_internal;
+    // ③ D₃₂ 미세화 효과 (30μm 기준, 작을수록 약간 끈적)
+    const dFac = 0.6 + 12 / Math.max(D32_um, 10);
+    // ④ W/O는 외상이 오일이라 기본 점도 약간 ↑
+    const typeFac = emulsionType === 'WO' ? 1.4 : 1.0;
+
+    // V15 — 9개 실측 생산 로트(C13Z001~D17Z018, 평균 18,578 cps)는 모두
+    //        3500 rpm 유화로 제조됨. 해당 운전조건의 모델 D₃₂≈13.0 μm에서
+    //        보정 전 점도는 약 23,200 cps(+24% 과예측) → 보정계수 0.800 적용으로
+    //        실제 생산 운전조건(3500 rpm)에서 실측 출하 점도와 정합시킴.
+    const VISC_CALIB = 0.800;
+    // 30℃ 기준 cps → 75℃ Pa·s 역환산 (내부 단위 호환)
+    const cps_30C = base_cps * tFac * pFac * dFac * typeFac * VISC_CALIB;
+    const muPas_75C = cps_30C / tempFac_30 / 1000;
+    return muPas_75C;
+  },
+  /* 비중 (배합 가중평균) */
+  calcSpecificGravity(formulation) {
+    const densities = {
+      'aq-water': 1.000, 'aq-emul': 1.05, 'aq-humec': 1.26, 'aq-pres': 1.02,
+      'aq-powd': 4.20, 'aq-uv': 1.15,
+      'oi-oil': 0.85, 'oi-emul': 0.98, 'oi-wax': 0.82, 'oi-powd': 4.20,
+      'oi-disp': 1.02, 'oi-uv': 1.10, 'oi-misc': 1.00,
+    };
+    let mass = 0, vol = 0;
+    for (const k in formulation) {
+      vol += formulation[k];
+      mass += formulation[k] * densities[k];
+    }
+    return vol > 0 ? mass / vol : 1.0;
+  },
+  /* 평형 D32 (이론값 — 오픈소스 / Coulaloglou-Tavlarides 기반) */
+  calcTheoreticalD32(vessel, N_homo_rpm, sigma_mNm, phi_d) {
+    const eps = this.calcEpsilon(N_homo_rpm, vessel);
+    return this.calcD32Equilibrium(eps, sigma_mNm, phi_d, 75);
+  },
+  /* 표면장력 (배합 의존) */
+  calcSurfaceTension(formulation) {
+    const baseSigma = 35;  // mN/m (계면활성제 없을 때)
+    // 유화제 함량 합계
+    const totalEmul = formulation['aq-emul'] + formulation['oi-emul'];
+    // 유화제 많을수록 σ 낮음
+    const reduction = Math.min(30, totalEmul * 4);
+    return Math.max(2, baseSigma - reduction);
+  },
+  /* 분산상 부피분율 (유상 + 분체) */
+  calcPhi_d(formulation) {
+    const aq_total = getAqueousTotal();
+    const oi_total = getOilTotal();
+    const total = aq_total + oi_total;
+    if (total < 1) return 0.4;
+    return oi_total / total;
+  },
+  /* ─── Shannon Entropy 기반 혼합 균일도 (V9.13 신규)
+     이학승 학우 KH instability 논문의 정보이론 기반 분석 차용
+     입자 크기 분포(DSD)의 폭이 좁을수록 → entropy 낮음 → 균일 유화 ─── */
+  calcShannonEntropy(D32_um, eps, sigma_mNm, phi_d, t_sim) {
+    // log-normal 분포의 폭(sigma_log) 추정
+    // 시간이 지나고 ε이 강할수록 분포가 좁아짐 (drawDSD 로직과 일관)
+    const eps_factor = Math.min(1.0, eps / 5.0);          // ε 클수록 좁아짐
+    const time_factor = Math.min(1.0, t_sim / 600);        // 시간 지날수록 좁아짐
+    const phi_penalty = phi_d > 0.5 ? (phi_d - 0.5) * 0.3 : 0;  // 분산상 많으면 분포 넓어짐
+    const sigma_log = Math.max(0.12, 0.45 - 0.20 * eps_factor - 0.15 * time_factor + phi_penalty);
+
+    // log-scale에서 D32 중심 log-normal PDF 생성 (10~200μm, 50 bin)
+    const xMin_log = Math.log10(10);
+    const xMax_log = Math.log10(200);
+    const nBins = 50;
+    const center_log = Math.log10(D32_um);
+    const pdf = [];
+    let sum = 0;
+    for (let j = 0; j < nBins; j++) {
+      const x_log = xMin_log + (j / (nBins - 1)) * (xMax_log - xMin_log);
+      const z = (x_log - center_log) / sigma_log;
+      const p = Math.exp(-0.5 * z * z);
+      pdf.push(p);
+      sum += p;
+    }
+    // 확률 분포로 정규화 후 Shannon entropy 계산: H = -Σ p·log(p)
+    let H = 0;
+    for (let j = 0; j < nBins; j++) {
+      const p = pdf[j] / sum;
+      if (p > 1e-10) H -= p * Math.log(p);
+    }
+    return H;  // 이론 최대값 ln(50) ≈ 3.91 (균등분포), 일반적으로 1.5~3.5 범위
+  },
+
+  /* H-Index: entropy를 0~100% 직관적 균일도 점수로 변환
+     - entropy 높음(분포 넓음) → 불균일 → 낮은 점수
+     - entropy 낮음(분포 좁음) → 균일 → 높은 점수 */
+  calcHomogeneityIndex(D32_um, eps, sigma_mNm, phi_d, t_sim) {
+    const H = this.calcShannonEntropy(D32_um, eps, sigma_mNm, phi_d, t_sim);
+    // entropy 1.5(매우 좁음) → 100%, 3.5(매우 넓음) → 0% 로 매핑
+    const H_min = 1.5, H_max = 3.5;
+    const score = 100 * (1 - (H - H_min) / (H_max - H_min));
+    return Math.max(0, Math.min(100, score));
+  },
+
+  /* V14 — 공정 점도(75℃, Pa·s) → 출하 점도(30℃, Brookfield S4·12rpm, cps)
+     calcViscosity가 이미 화장품 cps 범위로 보정해서 Pa·s를 만들었으므로
+     여기서는 단순히 tempFac × 1000으로 cps 단위 복원. */
+  calcViscosity_cps_at30C(mu_75C_Pas) {
+    const tempFac_30 = 2.2;
+    return mu_75C_Pas * tempFac_30 * 1000;
+  },
+
+  /* V14 — 점도(cps) → 경도(mm, 15Φ probe, 6cm/min) 환산
+     40,000 cps에서 약 25 mm, 100,000 cps에서 약 15 mm 정도가 일반적 */
+  calcHardness_mm(viscosity_cps) {
+    if (viscosity_cps <= 0) return 30;
+    // 40k cps 기준점에서 25mm, 로그 스케일로 감소
+    const hardness = 25 - 12 * Math.log10(viscosity_cps / 40000);
+    return Math.max(2, Math.min(50, hardness));
+  },
+
+  /* V10 — 출하 측정값 결정 (40,000 cps 분기) */
+  getQCMetric(mu_75C_Pas) {
+    const cps = this.calcViscosity_cps_at30C(mu_75C_Pas);
+    if (cps <= 40000) {
+      return { mode: 'viscosity', value: cps, unit: 'cps', label: '점도', cps };
+    } else {
+      const mm = this.calcHardness_mm(cps);
+      return { mode: 'hardness', value: mm, unit: 'mm', label: '경도', cps };
+    }
+  },
+
+  /* V10 v2 — 최종 합격 판정 (D32 + H-Index + 사용자 설정 점도/경도 모두 AND) */
+  evaluateFinalQuality(D32, hIndex, mu_75C, qcSpec) {
+    const cps = this.calcViscosity_cps_at30C(mu_75C);
+    const hardness_mm = this.calcHardness_mm(cps);
+    // 사용자가 점도 모드를 선택했으면 cps로 판정, 경도 모드면 mm로 판정
+    let actualValue, actualUnit, actualLabel;
+    if (qcSpec.mode === 'viscosity') {
+      actualValue = cps;
+      actualUnit = 'cps';
+      actualLabel = '점도';
+    } else {
+      actualValue = hardness_mm;
+      actualUnit = 'mm';
+      actualLabel = '경도';
+    }
+    const d32Pass = D32 <= 35;
+    const hPass   = hIndex >= 80;
+    const qcPass  = actualValue >= qcSpec.min && actualValue <= qcSpec.max;
+    return {
+      d32Pass, hPass, qcPass, allPass: d32Pass && hPass && qcPass,
+      qcMode: qcSpec.mode,
+      qcValue: actualValue,
+      qcUnit: actualUnit,
+      qcLabel: actualLabel,
+      qcCps: cps,
+      qcSpecMin: qcSpec.min,
+      qcSpecMax: qcSpec.max,
+    };
+  },
+
+  /* ═══════════════════════════════════════════════════════════════
+     V11 신규 — PBM (Population Balance Model) 엔진
+     Calvo et al.(2024) "A population balance model for cosmetic
+     emulsion design: A multiscale approach" Chem. Eng. Sci. 287:119737
+     순수 파괴(pure breakage) PBM + Fixed-Pivot(Kumar & Ramkrishna 1996)
+     기존 Calabrese 모델은 그대로 두고, 정밀 모드로 병행 추가.
+     ═══════════════════════════════════════════════════════════════ */
+  PBM: {
+    /* ── 액적 부피 격자: 65개 노드 (로그 등간격) ──
+       지름 1~200 μm 범위를 부피 기준 기하수열로 이산화 */
+    NODES: 65,
+    _grid: null,        // 노드별 부피 v_i [μm³]
+    _diam: null,        // 노드별 지름 d_i [μm]
+
+    /* 격자 초기화 (최초 1회) */
+    initGrid() {
+      if (this._grid) return;
+      const n = this.NODES;
+      const dMin = 1, dMax = 200;                       // μm
+      this._diam = new Array(n);
+      this._grid = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const d = dMin * Math.pow(dMax / dMin, i / (n - 1));
+        this._diam[i] = d;
+        this._grid[i] = Math.PI / 6 * d * d * d;        // 부피 v = π/6·d³
+      }
+    },
+
+    /* ── K₁~K₄ 경험식 ──
+       Calvo 논문: K₁(관성)·K₃(점성)는 점증제 농도·교반에 민감,
+       K₂·K₄는 거의 일정(평균값). conc = 점증제 wt%, rpm = 호모 회전수 */
+    paramsFromCondition(conc, rpm) {
+      const c = Math.max(0, conc);
+      const nrps = Math.max(rpm, 1) / 60;
+      // K₁: 점증제·교반 증가 시 증가 (2차 회귀 형태)
+      const K1 = 0.40 + 0.22 * c + 0.012 * c * c + 0.05 * (nrps / 10);
+      // K₂: 거의 일정 (평형값에 가까운 평균)
+      const K2 = 0.62;
+      // K₃: 점증제 증가 시 감소 (거듭제곱 형태) — 파괴 시간 ↑
+      const K3 = 1.85 * Math.pow(1 + c, -0.55);
+      // K₄: 거의 일정 (Calvo 평균값 ≈ 3.41)
+      const K4 = 3.41;
+      return { K1, K2, K3, K4 };
+    },
+
+    /* ── 파괴 빈도 g(v) = g₁(관성) + g₂(점성) ──
+       eps = 에너지 소산율 [W/kg] */
+    breakageFreq(v, K, eps) {
+      const e = Math.max(eps, 0.01);
+      const vRef = Math.PI / 6 * 30 * 30 * 30;           // 30 μm 기준 부피
+      const x = v / vRef;
+      // g₁ 관성력: ε 의존, 큰 액적일수록 잘 깨짐
+      const g1 = K.K1 * Math.pow(e, 1 / 3) * Math.pow(x, 2 / 9)
+                 * Math.exp(-K.K2 / Math.max(x, 1e-6));
+      // g₂ 점성력: 점성 영역, K₃·K₄ 조절
+      const g2 = K.K3 * Math.pow(e, 1 / 2) * Math.pow(x, 1 / 3)
+                 * Math.exp(-K.K4 / Math.max(x * 8, 1e-6));
+      return (g1 + g2) * 0.02;                           // 시간 스케일 보정
+    },
+
+    /* ── 딸 액적 분포 β(v, v') — 이항 파괴, 절단 정규분포 ──
+       부피 v'인 모액적이 깨질 때 부피 v 딸액적이 나올 밀도.
+       동일 크기 두 개로 쪼개질 확률이 가장 높음(v'/2 중심) */
+    daughter(v, vParent) {
+      if (v >= vParent) return 0;
+      const mean = vParent / 2;
+      const sd = vParent / 6;
+      const z = (v - mean) / sd;
+      return Math.exp(-0.5 * z * z);                     // 정규화는 호출부에서
+    },
+
+    /* ── Fixed-Pivot 1스텝 (RK4, 내부 서브스텝) ──
+       N : 노드별 수밀도 배열 / dt : 진행 시간[s] / eps / K */
+    step(N, dt, eps, K) {
+      this.initGrid();
+      const n = this.NODES;
+      const sub = 20;                                    // stiff 대응 서브스텝
+      const h = dt / sub;
+      let cur = N.slice();
+      for (let s = 0; s < sub; s++) {
+        const k1 = this._deriv(cur, eps, K);
+        const t2 = cur.map((x, i) => x + h / 2 * k1[i]);
+        const k2 = this._deriv(t2, eps, K);
+        const t3 = cur.map((x, i) => x + h / 2 * k2[i]);
+        const k3 = this._deriv(t3, eps, K);
+        const t4 = cur.map((x, i) => x + h * k3[i]);
+        const k4 = this._deriv(t4, eps, K);
+        cur = cur.map((x, i) =>
+          Math.max(0, x + h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])));
+      }
+      return cur;
+    },
+
+    /* dN_i/dt = (파괴 생성) − (파괴 소멸)
+       Fixed-Pivot(Kumar & Ramkrishna 1996): 딸 액적의 부피가
+       격자 노드와 정확히 일치하지 않으므로, 인접 두 노드에
+       '개수 보존 + 부피 보존'을 동시에 만족하도록 가중 분배한다. */
+    _deriv(N, eps, K) {
+      const n = this.NODES;
+      const v = this._grid;
+      const dNdt = new Array(n).fill(0);
+      // 소멸: g(v_j)·N_j
+      const death = new Array(n);
+      for (let j = 0; j < n; j++) death[j] = this.breakageFreq(v[j], K, eps) * N[j];
+
+      // 딸 분포를 연속 부피축에서 적분 → 인접 노드로 Fixed-Pivot 할당
+      for (let j = 1; j < n; j++) {
+        if (death[j] <= 0) continue;
+        // 모액적 j의 딸분포 β(v, v_j)를 잘게 샘플링 (0~v_j)
+        const mSamp = 40;
+        // 먼저 정규화 상수 (개수 2개가 되도록)
+        let betaSum = 0;
+        const bv = new Array(mSamp), bw = new Array(mSamp);
+        for (let m = 0; m < mSamp; m++) {
+          const vd = (m + 0.5) / mSamp * v[j];   // 딸 액적 부피
+          bv[m] = vd;
+          bw[m] = this.daughter(vd, v[j]);
+          betaSum += bw[m];
+        }
+        if (betaSum <= 0) continue;
+        // 이항 파괴: 모액적 1개 → 딸 2개, 부피 총합 = v_j
+        // β를 '개수밀도'로 정규화: ∫β dv = 2
+        const dv = v[j] / mSamp;
+        const norm = 2 / (betaSum * dv);
+        for (let m = 0; m < mSamp; m++) {
+          const vd = bv[m];
+          const cnt = bw[m] * norm * dv * death[j];   // 이 부피의 딸 액적 개수율
+          if (cnt <= 0) continue;
+          // vd가 속하는 격자 구간 [i, i+1] 찾기
+          let i = 0;
+          while (i < n - 1 && v[i + 1] < vd) i++;
+          if (vd <= v[0]) {
+            dNdt[0] += cnt;                            // 최소 노드로
+          } else if (vd >= v[n - 1]) {
+            dNdt[n - 1] += cnt;
+          } else {
+            // Fixed-Pivot 가중: 개수·부피 동시 보존
+            //  a + b = cnt,  a·v[i] + b·v[i+1] = cnt·vd
+            const f = (v[i + 1] - vd) / (v[i + 1] - v[i]);
+            dNdt[i]     += cnt * f;
+            dNdt[i + 1] += cnt * (1 - f);
+          }
+        }
+      }
+      // 소멸 반영
+      for (let j = 0; j < n; j++) dNdt[j] -= death[j];
+      return dNdt;
+    },
+
+    /* ── 초기 DSD 생성 — 큰 액적 중심 log-normal ──
+       d32_init : 초기 자우터 직경[μm] */
+    initialN(d32_init) {
+      this.initGrid();
+      const n = this.NODES;
+      const N = new Array(n).fill(0);
+      const centerLog = Math.log(d32_init);
+      const sdLog = 0.35;
+      let tot = 0;
+      for (let i = 0; i < n; i++) {
+        const z = (Math.log(this._diam[i]) - centerLog) / sdLog;
+        N[i] = Math.exp(-0.5 * z * z);
+        tot += N[i];
+      }
+      // 총 분산상 부피가 일정하도록 정규화 (상대 스케일)
+      for (let i = 0; i < n; i++) N[i] = N[i] / tot * 1e6;
+      return N;
+    },
+
+    /* ── DSD → 자우터 직경 D₃₂ = Σn·d³ / Σn·d² ── */
+    sauterFromN(N) {
+      this.initGrid();
+      let num = 0, den = 0;
+      for (let i = 0; i < this.NODES; i++) {
+        const d = this._diam[i];
+        num += N[i] * d * d * d;
+        den += N[i] * d * d;
+      }
+      return den > 0 ? Math.max(1, num / den) : 100;
+    },
+
+    /* ── DSD → H-Index (Shannon entropy 직접 계산) ──
+       기존 calcShannonEntropy는 분포를 '추정'하지만,
+       PBM 모드는 실제 계산된 N에서 바로 entropy를 구한다. */
+    hIndexFromN(N) {
+      let tot = 0;
+      for (let i = 0; i < this.NODES; i++) tot += N[i];
+      if (tot <= 0) return 0;
+      let H = 0;
+      for (let i = 0; i < this.NODES; i++) {
+        const p = N[i] / tot;
+        if (p > 1e-12) H -= p * Math.log(p);
+      }
+      // entropy → 0~100% (분포 좁을수록 높은 점수)
+      // 65노드 균등분포 max = ln(65) ≈ 4.17
+      const H_min = 1.6, H_max = 3.6;
+      const score = 100 * (1 - (H - H_min) / (H_max - H_min));
+      return Math.max(0, Math.min(100, score));
+    },
+
+    /* ── DSD → Span = (d90−d10)/d50 ── */
+    spanFromN(N) {
+      this.initGrid();
+      let tot = 0;
+      for (let i = 0; i < this.NODES; i++) tot += N[i];
+      if (tot <= 0) return 0;
+      const pct = (target) => {
+        let acc = 0;
+        for (let i = 0; i < this.NODES; i++) {
+          acc += N[i] / tot;
+          if (acc >= target) return this._diam[i];
+        }
+        return this._diam[this.NODES - 1];
+      };
+      const d10 = pct(0.10), d50 = pct(0.50), d90 = pct(0.90);
+      return d50 > 0 ? (d90 - d10) / d50 : 0;
+    },
+
+    /* ── DSD → 정규화 분포 배열 (차트용, 50 bin 보간) ── */
+    normalizedDist(N) {
+      this.initGrid();
+      let peak = 0;
+      for (let i = 0; i < this.NODES; i++) peak = Math.max(peak, N[i]);
+      if (peak <= 0) return [];
+      return this._diam.map((d, i) => ({ d, v: N[i] / peak }));
+    },
+  },
+
+  evaluateQuality(D32_um, sg, t_min, target_time) {
+    if (t_min < target_time * 0.3) return { label: '진행 중', color: '#94a3b8' };
+    if (D32_um > 80) return { label: '미달성 (Coarse)', color: '#f59e0b' };
+    if (D32_um > 50) return { label: '보통 (Acceptable)', color: '#fbbf24' };
+    if (D32_um > 30) return { label: '양호 (Good)', color: '#84cc16' };
+    if (D32_um > 20) return { label: '우수 (Fine)', color: '#10b981' };
+    return { label: '미세 (Ultra-fine)', color: '#06b6d4' };
+  },
+
+  /* 제형 안정성 평가 (O/W vs W/O별) */
+  checkStability(formulation, emulsionType) {
+    const aq_total = getAqueousTotal();
+    const oi_total = getOilTotal();
+    const total = aq_total + oi_total;
+    if (total < 1) return { stable: true, warning: null };
+    const aq_ratio = aq_total / total;
+    const oi_ratio = oi_total / total;
+
+    if (emulsionType === 'OW') {
+      // O/W: 외상=물, 내상=오일
+      // 유상이 너무 많으면 (50% 이상) 깨질 위험
+      if (oi_ratio > 0.55) return { stable: false, warning: '⚠️ 유상 과다 — O/W 제형 불안정 (내상 ≥ 55%)' };
+      if (oi_ratio > 0.45) return { stable: true, warning: '주의: 유상 비율 높음 (45~55%)' };
+    } else {
+      // W/O: 외상=오일, 내상=물
+      // 수상이 너무 많으면 깨질 위험
+      if (aq_ratio > 0.65) return { stable: false, warning: '⚠️ 수상 과다 — W/O 제형 불안정 (내상 ≥ 65%)' };
+      if (aq_ratio > 0.55) return { stable: true, warning: '주의: 수상 비율 높음 (55~65%)' };
+    }
+    return { stable: true, warning: null };
+  },
+
+  /* 분산상 부피분율 — emulsionType 고려 */
+  calcInternalPhase(formulation, emulsionType) {
+    const aq_total = getAqueousTotal();
+    const oi_total = getOilTotal();
+    const total = aq_total + oi_total;
+    if (total < 1) return 0.4;
+    return emulsionType === 'WO' ? aq_total / total : oi_total / total;
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   Three.js
+   ═══════════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('canvas-3d');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(2.2, 1.4, 3.0);  // V10 v4 — 두 가마 간격 잘 보이도록
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(-0.20, 0.30, 0);  // V10 v4 — 카메라 타겟 두 가마 사이
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));  // V10 v4 — 살짝 밝게
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+keyLight.position.set(3, 5, 4);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0xa0c0ff, 0.5);
+rimLight.position.set(-3, 2, -2);
+scene.add(rimLight);
+// 하이라이트
+const fillLight = new THREE.PointLight(0xffd0a0, 0.4, 5);
+fillLight.position.set(0, 1, 2);
+scene.add(fillLight);
+// V10 v4 — 용해조 전용 조명 (입자가 잘 보이도록)
+const dissolverLight = new THREE.PointLight(0xffffff, 0.6, 3);
+dissolverLight.position.set(-0.95, 1.0, 0.5);
+scene.add(dissolverLight);
+
+class Vessel3D {
+  constructor() {
+    this.group = new THREE.Group();
+    this.group.position.x = 0.55;  // V10 v4 — 더 멀리
+    scene.add(this.group);
+    this.homoGroup = new THREE.Group();
+    this.paddleScraperGroup = new THREE.Group();
+    this.staticGroup = new THREE.Group();
+    this.group.add(this.homoGroup, this.paddleScraperGroup, this.staticGroup);
+    this.particles = null;
+    this.particleData = [];
+    this.build('V-500');
+  }
+
+  clear() {
+    [this.homoGroup, this.paddleScraperGroup, this.staticGroup].forEach(g => {
+      while (g.children.length) g.remove(g.children[0]);
+    });
+    if (this.particles) {
+      this.group.remove(this.particles);
+      this.particles.geometry.dispose();
+      this.particles = null;
+    }
+  }
+
+  build(vesselKey) {
+    this.clear();
+    const v = VESSELS[vesselKey];
+    this.currentVessel = v;
+    this.currentVesselKey = vesselKey;
+
+    const r = v.D_v / 2;
+    const h = v.H;
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x8090aa, metalness: 0.6, roughness: 0.4,
+      transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+    });
+    // 임펠러 — 어두운 배경에서 보이는 밝은 메탈
+    const blackMat = new THREE.MeshStandardMaterial({
+      color: 0xa0a8b8, metalness: 0.9, roughness: 0.30,
+    });
+    const shaftMat = new THREE.MeshStandardMaterial({
+      color: 0xb0b8c8, metalness: 0.95, roughness: 0.25,
+    });
+
+    /* 가마 외벽 */
+    const wallGeom = new THREE.CylinderGeometry(r, r, h, 64, 1, true);
+    const wall = new THREE.Mesh(wallGeom, wallMat);
+    wall.position.y = h / 2;
+    this.staticGroup.add(wall);
+
+    const baseGeom = new THREE.SphereGeometry(r * 0.99, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    const base = new THREE.Mesh(baseGeom, wallMat);
+    base.position.y = 0.01;
+    this.staticGroup.add(base);
+
+    const rimGeom = new THREE.TorusGeometry(r, r * 0.015, 8, 48);
+    const rim = new THREE.Mesh(rimGeom, blackMat);
+    rim.position.y = h;
+    rim.rotation.x = Math.PI / 2;
+    this.staticGroup.add(rim);
+
+    /* ─── 호모 (가마 하부) ─── */
+    const homoY = h * 0.10;
+    const homoSize = v.D_imp;
+
+    const homoBodyGeom = new THREE.CylinderGeometry(homoSize * 0.7, homoSize * 0.7, h * 0.06, 16);
+    const homoBody = new THREE.Mesh(homoBodyGeom, blackMat);
+    homoBody.position.y = homoY;
+    this.homoGroup.add(homoBody);
+
+    const rotorGeom = new THREE.CylinderGeometry(homoSize * 0.45, homoSize * 0.45, h * 0.018, 16);
+    const rotor = new THREE.Mesh(rotorGeom, blackMat);
+    rotor.position.y = homoY;
+    this.homoGroup.add(rotor);
+
+    for (let i = 0; i < 8; i++) {
+      const bladeGeom = new THREE.BoxGeometry(homoSize * 0.85, h * 0.012, homoSize * 0.06);
+      const blade = new THREE.Mesh(bladeGeom, blackMat);
+      blade.position.y = homoY;
+      blade.rotation.y = (i / 8) * Math.PI * 2;
+      this.homoGroup.add(blade);
+    }
+
+    const statorR = homoSize * 0.55;
+    const statorGeom = new THREE.CylinderGeometry(statorR, statorR, h * 0.04, 24, 1, true);
+    const statorMat = new THREE.MeshStandardMaterial({
+      color: 0x4a4a54, metalness: 0.7, roughness: 0.4,
+      transparent: true, opacity: 0.6, side: THREE.DoubleSide,
+    });
+    const stator = new THREE.Mesh(statorGeom, statorMat);
+    stator.position.y = homoY;
+    this.staticGroup.add(stator);
+
+    const homoShaftGeom = new THREE.CylinderGeometry(r * 0.025, r * 0.025, h * 1.0, 12);
+    const homoShaft = new THREE.Mesh(homoShaftGeom, shaftMat);
+    homoShaft.position.y = h * 0.55;
+    this.homoGroup.add(homoShaft);
+
+    /* ─── 헬리컬 패들 (깔끔한 통일 헬리컬 리본) ─── */
+    const paddleR = r * 0.85;
+    const paddleTurns = 1.4;
+    const paddleSegments = 100;
+    const paddleStartY = h * 0.18;
+    const paddleEndY = h * 0.85;
+
+    // 두 개의 헬리컬 리본 (180° offset)
+    for (let helix = 0; helix < 2; helix++) {
+      const offsetAngle = helix * Math.PI;
+      for (let s = 0; s < paddleSegments; s++) {
+        const t1 = s / paddleSegments;
+        const t2 = (s + 1) / paddleSegments;
+        const angle1 = t1 * paddleTurns * Math.PI * 2 + offsetAngle;
+        const angle2 = t2 * paddleTurns * Math.PI * 2 + offsetAngle;
+        const y1 = paddleStartY + t1 * (paddleEndY - paddleStartY);
+        const y2 = paddleStartY + t2 * (paddleEndY - paddleStartY);
+        const x1 = paddleR * Math.cos(angle1);
+        const z1 = paddleR * Math.sin(angle1);
+        const x2 = paddleR * Math.cos(angle2);
+        const z2 = paddleR * Math.sin(angle2);
+
+        const segLen = Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2);
+        const segGeom = new THREE.BoxGeometry(r * 0.04, r * 0.06, segLen * 1.05);
+        const seg = new THREE.Mesh(segGeom, blackMat);
+        seg.position.set((x1+x2)/2, (y1+y2)/2, (z1+z2)/2);
+        seg.lookAt(new THREE.Vector3(x2, y2, z2));
+        this.paddleScraperGroup.add(seg);
+      }
+    }
+
+    const paddleShaftGeom = new THREE.CylinderGeometry(r * 0.030, r * 0.030, h * 1.0, 12);
+    const paddleShaft = new THREE.Mesh(paddleShaftGeom, shaftMat);
+    paddleShaft.position.y = h * 0.5;
+    this.paddleScraperGroup.add(paddleShaft);
+
+    /* ─── 스크래퍼 (벽면 수직 + 연결 암) ─── */
+    const scraperR = r * 0.96;
+    const scraperW = r * 0.02;
+    const scraperT = r * 0.10;
+    const scraperH = h * 0.85;
+
+    for (let i = 0; i < 2; i++) {
+      const sAngle = i * Math.PI;
+      const sBladeGeom = new THREE.BoxGeometry(scraperW, scraperH, scraperT);
+      const sBlade = new THREE.Mesh(sBladeGeom, blackMat);
+      sBlade.position.set(
+        scraperR * Math.cos(sAngle),
+        h * 0.475,
+        scraperR * Math.sin(sAngle)
+      );
+      this.paddleScraperGroup.add(sBlade);
+
+      const armUpGeom = new THREE.BoxGeometry(scraperR * 0.95, r * 0.02, r * 0.04);
+      const armUp = new THREE.Mesh(armUpGeom, blackMat);
+      armUp.position.set(
+        (scraperR * Math.cos(sAngle)) / 2,
+        h * 0.90,
+        (scraperR * Math.sin(sAngle)) / 2
+      );
+      armUp.rotation.y = sAngle;
+      this.paddleScraperGroup.add(armUp);
+
+      const armDownGeom = new THREE.BoxGeometry(scraperR * 0.95, r * 0.02, r * 0.04);
+      const armDown = new THREE.Mesh(armDownGeom, blackMat);
+      armDown.position.set(
+        (scraperR * Math.cos(sAngle)) / 2,
+        h * 0.05,
+        (scraperR * Math.sin(sAngle)) / 2
+      );
+      armDown.rotation.y = sAngle;
+      this.paddleScraperGroup.add(armDown);
+    }
+
+    this.buildParticles();
+  }
+
+  buildParticles(count = 2500) {
+    if (this.particles) {
+      this.group.remove(this.particles);
+      this.particles.geometry.dispose();
+    }
+    const v = this.currentVessel;
+    const r = v.D_v / 2 * 0.93;
+    const h = v.H;
+
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    this.particleData = [];
+
+    /* 배합 기반 phase 비율 — 외상/내상 (emulsionType별) */
+    const aq_total = getAqueousTotal();
+    const oi_total = getOilTotal();
+    const totalMass = aq_total + oi_total;
+    const aq_frac_raw = totalMass > 0 ? aq_total / totalMass : 0.6;
+
+    // O/W: 외상 = 수상 (청록), 내상 = 유상 (황금)
+    // W/O: 외상 = 유상 (황금), 내상 = 수상 (청록)
+    let PHASES;
+    if (simState.emulsionType === 'WO') {
+      // W/O — 외상이 유상, 색상 황금이 우세
+      PHASES = [
+        { name: 'oil_outer',  color: [1.00, 0.78, 0.30], frac: 1 - aq_frac_raw },  // 외상 황금
+        { name: 'aq_inner',   color: [0.40, 0.85, 1.00], frac: aq_frac_raw },      // 내상 청록
+      ];
+    } else {
+      // O/W — 외상이 수상, 색상 청록이 우세
+      PHASES = [
+        { name: 'aq_outer',   color: [0.40, 0.85, 1.00], frac: aq_frac_raw },      // 외상 청록
+        { name: 'oil_inner',  color: [1.00, 0.78, 0.30], frac: 1 - aq_frac_raw },  // 내상 황금
+      ];
+    }
+
+    const cumulative = PHASES.reduce((acc, p, i) => {
+      acc.push((acc[i-1] || 0) + p.frac);
+      return acc;
+    }, []);
+
+    for (let i = 0; i < count; i++) {
+      const u = Math.random();
+      let phaseIdx = 0;
+      for (let k = 0; k < cumulative.length; k++) {
+        if (u <= cumulative[k]) { phaseIdx = k; break; }
+      }
+      const phase = PHASES[phaseIdx];
+
+      const radius = Math.sqrt(Math.random()) * r;
+      const angle = Math.random() * Math.PI * 2;
+      const yPos = 0.05 + Math.random() * (h * 0.92);
+
+      positions[i*3+0] = radius * Math.cos(angle);
+      positions[i*3+1] = yPos;
+      positions[i*3+2] = radius * Math.sin(angle);
+      colors[i*3+0] = phase.color[0];
+      colors[i*3+1] = phase.color[1];
+      colors[i*3+2] = phase.color[2];
+
+      this.particleData.push({
+        phaseName: phase.name,
+        phaseColor: phase.color.slice(),
+        currentColor: phase.color.slice(),
+        radius, angle, y: yPos,
+        vSpeed: 0.04 + Math.random() * 0.03,
+        rSpeed: 0.04 + Math.random() * 0.03,
+        passCount: 0,
+      });
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.024,                  // V10 v4 — 더 크게 강조
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      sizeAttenuation: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,  // 메인 가마는 발광 효과 유지
+    });
+    this.particles = new THREE.Points(geom, mat);
+    this.group.add(this.particles);
+  }
+
+  updateParticles(dt, simState) {
+    if (!this.particles) return;
+    const positions = this.particles.geometry.attributes.position.array;
+    const colors = this.particles.geometry.attributes.color.array;
+    const v = this.currentVessel;
+    const r = v.D_v / 2 * 0.93;
+    const h = v.H;
+
+    const homoY = h * 0.10;
+    const homoR = r * 0.30;
+    const homoYRange = h * 0.10;
+
+    /* 호모 RPM 정규화 — 새 최대값 3500 */
+    const homoActivity = Math.min(1.0, simState.homoOmega / 3500);
+    /* 패들·스크래퍼 새 최대값 25 */
+    const paddleActivity = Math.min(1.0, simState.paddleOmega / 25);
+    const scraperActivity = Math.min(1.0, simState.scraperOmega / 25);
+
+    /* 온도 보정 — 가온하면 점도 ↓ → 흐름 ↑ */
+    const tempFactor = 0.5 + 0.7 * (simState.temp_C - 20) / 65;  // 20℃ → 0.5, 85℃ → 1.2
+
+    /* 균형 잡힌 순환 */
+    const baseFlow = (0.4 + 0.6 * homoActivity) * tempFactor;
+    const upwardFlow = baseFlow;
+    const downwardFlow = baseFlow * (0.7 + 0.3 * paddleActivity);
+    const speedScale = h;
+
+    for (let i = 0; i < this.particleData.length; i++) {
+      const p = this.particleData[i];
+
+      const distXZ = p.radius;
+      const inHomoZone = (distXZ < homoR) && Math.abs(p.y - homoY) < homoYRange;
+
+      if (inHomoZone) {
+        p.passCount = Math.min(50, p.passCount + dt * 0.8 * homoActivity);
+        const mixRatio = Math.min(1.0, p.passCount / 30);
+        const tR = 1.00, tG = 0.98, tB = 0.92;
+        p.currentColor[0] = p.phaseColor[0] * (1 - mixRatio) + tR * mixRatio;
+        p.currentColor[1] = p.phaseColor[1] * (1 - mixRatio) + tG * mixRatio;
+        p.currentColor[2] = p.phaseColor[2] * (1 - mixRatio) + tB * mixRatio;
+      }
+
+      let yVelocity = 0;
+      let rVelocity = 0;
+      const rNorm = p.radius / r;
+      const yNorm = p.y / h;
+
+      if (rNorm < 0.5) {
+        const proximity = Math.max(0, 1 - Math.abs(p.y - homoY) / h);
+        yVelocity = p.vSpeed * speedScale * (0.7 + proximity * 1.0) * upwardFlow;
+        rVelocity = p.rSpeed * speedScale * 0.5 * yNorm * upwardFlow;
+      } else {
+        yVelocity = -p.vSpeed * speedScale * (0.7 + 0.3 * paddleActivity) * downwardFlow;
+        if (yNorm < 0.25) {
+          rVelocity = -p.rSpeed * speedScale * 1.3 * downwardFlow;
+        } else if (yNorm > 0.85) {
+          rVelocity = p.rSpeed * speedScale * 0.4 * paddleActivity;
+        } else {
+          rVelocity = (Math.random() - 0.5) * 0.04 * speedScale;
+        }
+      }
+
+      yVelocity += (Math.random() - 0.5) * 0.05 * speedScale * baseFlow;
+      rVelocity += (Math.random() - 0.5) * 0.04 * speedScale * baseFlow;
+
+      p.y += yVelocity * dt;
+      p.radius += rVelocity * dt;
+
+      let omega;
+      if (inHomoZone) {
+        omega = simState.homoOmega * 0.003 * homoActivity;
+      } else if (yNorm > 0.15 && yNorm < 0.90) {
+        omega = simState.paddleOmega * 0.10 * (0.5 + paddleActivity * 0.5);
+      } else {
+        omega = simState.scraperOmega * 0.08;
+      }
+      p.angle += omega * dt;
+
+      if (p.y < 0.04) p.y = 0.04;
+      if (p.y > h * 0.94) p.y = h * 0.94;
+      if (p.radius < 0.02) p.radius = 0.02;
+      if (p.radius > r) p.radius = r;
+
+      positions[i*3+0] = p.radius * Math.cos(p.angle);
+      positions[i*3+1] = p.y;
+      positions[i*3+2] = p.radius * Math.sin(p.angle);
+
+      colors[i*3+0] = p.currentColor[0];
+      colors[i*3+1] = p.currentColor[1];
+      colors[i*3+2] = p.currentColor[2];
+    }
+    this.particles.geometry.attributes.position.needsUpdate = true;
+    this.particles.geometry.attributes.color.needsUpdate = true;
+  }
+
+  rotateImpellers(dt, simState) {
+    this.homoGroup.rotation.y += simState.homoOmega * dt * 0.001;
+    this.paddleScraperGroup.rotation.y -= simState.paddleOmega * dt * 0.15;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   시뮬레이션 상태 — vessel3D 생성 전에 정의
+   (Vessel3D.buildParticles()에서 simState.emulsionType 참조하므로)
+   ═══════════════════════════════════════════════════════════════ */
+const simState = {
+  running: false,
+  t_sim: 0,
+  dt_sim: 1.0,         // V10 v5 — 한 frame당 시뮬 1초 (60fps에서 단계 진행이 부드럽게)
+  speedMultiplier: 1,
+  D32: 109.0,
+  mu_eff: 5.0,
+  sg: 1.020,
+  hIndex: 0,  // V9.13 — 혼합 균일도 (Shannon entropy 기반)
+  homoOmega: 2000,
+  paddleOmega: 15,
+  scraperOmega: 15,
+  temp_C: 75,
+  setTemp_C: 75,
+  targetTime_min: 15,
+  history: { t: [], D32: [], mu: [], eps: [], hIndex: [] },
+  vesselKey: 'V-500',
+  vesselsHistory: {
+    'V-100':  { t: [], D32: [], lastD32: 109.0 },
+    'V-300':  { t: [], D32: [], lastD32: 109.0 },
+    'V-500':  { t: [], D32: [], lastD32: 109.0 },
+  },
+  // V9.9 신규 — 제형 타입
+  emulsionType: 'OW',
+  // V9.9 신규 — 검증 표 데이터 (가마별 실측 D32)
+  validationData: {
+    'V-100': { measured: null, simulated: null, rpm: null },
+    'V-300': { measured: null, simulated: null, rpm: null },
+    'V-500': { measured: null, simulated: null, rpm: null },
+  },
+  // V9.9 신규 — DSD 스냅샷 (시간 시점별)
+  dsdSnapshots: [],
+
+  /* ═══ V11 신규 — PBM 모드 ═══ */
+  simMode: 'pbm',         // V12 — PBM이 기본값 (Calabrese는 옵션)
+  thickener: 0.5,         // 점증제(카보머) 농도 wt% — PBM K₁~K₄ 경험식 입력
+  pbmN: null,             // PBM 65-노드 수밀도 배열 (PBM 모드일 때만)
+  pbmSpan: 0,             // PBM이 산출한 Span = (d90-d10)/d50
+
+  /* ═══ V10 신규 — 5단계 공정 시퀀서 ═══ */
+  phase: 0,                    // 0=대기, 1=수상분산, 2=유상분산, 3=유화, 4=1차냉각+재분산, 5=2차냉각+QC, 6=완료
+  phaseTime: 0,                // 현재 단계 경과 시간(초)
+  autoMode: true,              // true=자동진행, false=수동
+  // 단계별 표준 시간(초)
+  phaseDuration: { 1: 360, 2: 480, 3: 600, 4: 480, 5: 360 },  // V10 v5 — 60fps에서 6/8/10/8/6초 체감
+  // 단계별 표준 RPM·온도 (자동 모드 시 적용)
+  // mainActive: 메인 가마 임펠러가 도는지 / dissolverActive: 용해조에서 작업 중인지
+  phaseConfig: {
+    1: { homo: 0,    paddle: 25, scraper: 0,  setTemp: 75, name: '수상 분산',          mainActive: true,  dissolverActive: false },
+    2: { homo: 0,    paddle: 0,  scraper: 0,  setTemp: 75, name: '유상 분산',          mainActive: false, dissolverActive: true  },
+    3: { homo: 3500, paddle: 25, scraper: 25, setTemp: 75, name: '유화',               mainActive: true,  dissolverActive: false },
+    4: { homo: 3500, paddle: 25, scraper: 25, setTemp: 35, name: '1차 냉각 + 재분산',   mainActive: true,  dissolverActive: false },
+    5: { homo: 0,    paddle: 25, scraper: 25, setTemp: 30, name: '2차 냉각 + QC',       mainActive: true,  dissolverActive: false },
+  },
+  // 용해조 (별도 가마) 상태
+  dissolver: {
+    dissolution: 0,    // 용해도 0~100% (옵션 ①)
+    dispersion: 0,     // 분산도 0~100%
+    completed: false,  // 95% 이상 도달 시 true
+  },
+  // QC 스펙 (사용자 직접 입력)
+  qcSpec: {
+    mode: 'viscosity',  // 'viscosity' | 'hardness'
+    min: 15000,         // cps 또는 mm
+    max: 40000,
+  },
+  // 최종 QC 결과
+  finalQC: null,
+};
+
+const vessel3D = new Vessel3D();
+
+/* ═══════════════════════════════════════════════════════════════
+   V15 신규 — 실측 생산 로트 검증 데이터 (논문 Table 7)
+   동일 제형(점증제 0.5wt%, 유상 30wt%, O/W)을 V-500 L(7로트)·V-100 L(2로트)
+   에서 실제 제조하여 측정한 출하 점도와 현미경 균일도(CoV).
+   전 로트 스펙(15,000~25,000 cps) 충족·무분리(PASS). 점도 보정계수의 근거.
+   ═══════════════════════════════════════════════════════════════ */
+const PRODUCTION_LOTS = [
+  { vessel: 'V-100', lot: 'C13Z001', visc_cps: 17000, cov: 0.048, grade: 'Excellent' },
+  { vessel: 'V-100', lot: 'C20Z002', visc_cps: 18000, cov: 0.074, grade: 'Excellent' },
+  { vessel: 'V-500', lot: 'D13Z013', visc_cps: 18500, cov: 0.147, grade: 'Good' },
+  { vessel: 'V-500', lot: 'D13Z014', visc_cps: 18000, cov: 0.159, grade: 'Good' },
+  { vessel: 'V-500', lot: 'D13Z015', visc_cps: 19000, cov: 0.211, grade: 'Fair' },
+  { vessel: 'V-500', lot: 'D14Z016', visc_cps: 17500, cov: 0.121, grade: 'Good' },
+  { vessel: 'V-500', lot: 'D14Z017', visc_cps: 20000, cov: 0.080, grade: 'Excellent' },
+  { vessel: 'V-500', lot: 'D14Z009', visc_cps: 19500, cov: 0.097, grade: 'Excellent' },
+  { vessel: 'V-500', lot: 'D17Z018', visc_cps: 19700, cov: 0.087, grade: 'Excellent' },
+];
+const PRODUCTION_SPEC = { min: 15000, max: 25000 };  // 출하 점도 스펙 (cps)
+const PRODUCTION_LOT_MEAN = PRODUCTION_LOTS.reduce((s, l) => s + l.visc_cps, 0) / PRODUCTION_LOTS.length; // ≈ 18,578 cps
+
+
+/* ═══════════════════════════════════════════════════════════════
+   V10 — Dissolver3D: 별도 용해조 (메인 가마 왼쪽, 절반 크기)
+   ═══════════════════════════════════════════════════════════════ */
+class Dissolver3D {
+  constructor() {
+    this.group = new THREE.Group();
+    this.group.position.set(-0.95, 0, 0);  // V10 v4 — 더 멀리 (간격 확보)
+    scene.add(this.group);
+
+    this.staticGroup = new THREE.Group();
+    this.particles = null;
+    this.particleData = [];
+    this.totalParticleCount = 0;
+    this.group.add(this.staticGroup);
+
+    this.build();
+  }
+
+  build() {
+    // 메인 가마(V-500: D=0.86)의 약 70% 크기 = D≈0.6, H≈0.6
+    const r = 0.30, h = 0.60;
+    this.r = r; this.h = h;
+
+    // 외벽 (투명 실린더) — 메인과 동일 재질
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x8090aa, metalness: 0.6, roughness: 0.4,
+      transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+    });
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 32, 1, true),
+      wallMat
+    );
+    wall.position.y = h / 2;
+    this.staticGroup.add(wall);
+
+    // 가마 림(상단 테두리) — 시각적 강조
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x9eaab8, metalness: 0.85, roughness: 0.35,
+    });
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(r, 0.012, 8, 32),
+      rimMat
+    );
+    rim.position.y = h;
+    rim.rotation.x = Math.PI / 2;
+    this.staticGroup.add(rim);
+
+    // 바닥
+    const bottomMat = new THREE.MeshStandardMaterial({
+      color: 0x607080, metalness: 0.7, roughness: 0.5,
+    });
+    const bottom = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, 0.012, 32),
+      bottomMat
+    );
+    bottom.position.y = 0.006;
+    this.staticGroup.add(bottom);
+
+    this.buildParticles();
+  }
+
+  buildParticles(count = 1500) {
+    if (this.particles) {
+      this.group.remove(this.particles);
+      this.particles.geometry.dispose();
+    }
+    const r = this.r * 0.92;
+    const h = this.h;
+
+    const positions = new Float32Array(count * 3);
+    const colors    = new Float32Array(count * 3);
+    this.particleData = [];
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.sqrt(Math.random()) * r * 0.96;
+      const height = 0.04 + Math.random() * (h * 0.88);
+      positions[i*3+0] = radius * Math.cos(angle);
+      positions[i*3+1] = height;
+      positions[i*3+2] = radius * Math.sin(angle);
+
+      // 제형에 따른 색상
+      this._setParticleColor(colors, i);
+
+      this.particleData.push({
+        baseAngle: angle, baseRadius: radius, baseHeight: height,
+        offset: Math.random() * Math.PI * 2,
+        wobblePhase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+    geo.setDrawRange(0, count);
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.030,                // V10 v4 — 더 크게
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,                // 완전 불투명
+      sizeAttenuation: true,
+      depthWrite: true,            // V10 v4 — 깊이 정보 기록 (다른 메쉬 가리지 않음)
+      depthTest: true,
+      // blending 기본값 (NormalBlending) - additive 제거해서 어두운 배경에서도 잘 보임
+    });
+
+    this.particles = new THREE.Points(geo, mat);
+    this.group.add(this.particles);
+    this.totalParticleCount = count;
+  }
+
+  // 단일 입자 색상 설정 (제형 타입에 따라)
+  _setParticleColor(colors, i) {
+    const isOilDissolver = (simState.emulsionType === 'OW');
+    if (isOilDissolver) {
+      // 유상: 진한 노랑/오렌지 (오일·UV·왁스 등)
+      colors[i*3+0] = 1.00; colors[i*3+1] = 0.72; colors[i*3+2] = 0.18;
+    } else {
+      // 수상: 진한 청록
+      colors[i*3+0] = 0.30; colors[i*3+1] = 0.85; colors[i*3+2] = 1.00;
+    }
+  }
+
+  refreshParticleColors() {
+    if (!this.particles) return;
+    const colors = this.particles.geometry.attributes.color.array;
+    for (let i = 0; i < this.totalParticleCount; i++) {
+      this._setParticleColor(colors, i);
+    }
+    this.particles.geometry.attributes.color.needsUpdate = true;
+  }
+
+  /* 매 frame 입자 wobble + 용해도/분산도에 따른 가시성/움직임 조정
+     dissolutionPct: 0~100% (입자가 풀려서 사라지는 정도, 입자 수 감소)
+     dispersionPct:  0~100% (입자가 가마 내부에 골고루 퍼지는 정도, 움직임 강도) */
+  update(dt, dissolutionPct, dispersionPct) {
+    if (!this.particles) return;
+    const positions = this.particles.geometry.attributes.position.array;
+    const colors = this.particles.geometry.attributes.color.array;
+    const t = performance.now() * 0.001;
+
+    // 분산도가 높을수록 입자가 더 활발히 움직임
+    const motionScale = Math.min(1.0, dispersionPct / 100);
+    const wobbleStrength = 0.003 + 0.018 * motionScale;
+    const swirlSpeed = 0.10 + 0.80 * motionScale;
+
+    // 용해도에 따라 입자 크기 줄어듦 (녹는 효과)
+    // 0% → 0.030 (큰 가루 알갱이) / 100% → 0.012 (거의 안 보일 정도)
+    const dFrac = dissolutionPct / 100;
+    const baseSize = 0.030 - 0.018 * dFrac;
+    this.particles.material.size = baseSize;
+
+    // 용해도에 따라 색 페이드 (가마 안 액체 색 쪽으로)
+    // 용해 = 가루가 액체 안에 녹아드는 것 → 색이 액체 색에 가까워짐
+    const isOilDissolver = (simState.emulsionType === 'OW');
+    // 액체 베이스 색 (어두운 배경)
+    const liqR = isOilDissolver ? 0.55 : 0.20;
+    const liqG = isOilDissolver ? 0.42 : 0.40;
+    const liqB = isOilDissolver ? 0.15 : 0.55;
+    // 원래 입자 색
+    const origR = isOilDissolver ? 1.00 : 0.30;
+    const origG = isOilDissolver ? 0.72 : 0.85;
+    const origB = isOilDissolver ? 0.18 : 1.00;
+    // 페이드 진행도 (용해 50%부터 본격 페이드)
+    const fadeAmount = Math.max(0, (dFrac - 0.3) / 0.7);
+
+    for (let i = 0; i < this.totalParticleCount; i++) {
+      const d = this.particleData[i];
+      // 원 궤도 운동 (분산도 높을 때 빠르게)
+      const angle = d.baseAngle + t * swirlSpeed;
+      // 수직 wobble
+      const wobY = Math.sin(t * 1.5 + d.wobblePhase) * wobbleStrength;
+      const wobR = Math.cos(t * 1.2 + d.offset) * wobbleStrength * 0.7;
+      const radius = d.baseRadius + wobR;
+      positions[i*3+0] = radius * Math.cos(angle);
+      positions[i*3+1] = d.baseHeight + wobY;
+      positions[i*3+2] = radius * Math.sin(angle);
+
+      // 색깔 페이드
+      colors[i*3+0] = origR * (1 - fadeAmount) + liqR * fadeAmount;
+      colors[i*3+1] = origG * (1 - fadeAmount) + liqG * fadeAmount;
+      colors[i*3+2] = origB * (1 - fadeAmount) + liqB * fadeAmount;
+    }
+    this.particles.geometry.attributes.position.needsUpdate = true;
+    this.particles.geometry.attributes.color.needsUpdate = true;
+
+    // 용해도 80% 넘어가면 점점 입자 수도 줄어듦 (남은 가루마저 사라짐)
+    let visibleCount;
+    if (dissolutionPct < 80) {
+      // 80% 전에는 모든 입자 보이되 크기/색만 변화
+      visibleCount = this.totalParticleCount;
+    } else {
+      // 80~100%에서 입자 수 5%까지 점점 감소
+      const tailFrac = (dissolutionPct - 80) / 20;  // 0~1
+      visibleCount = Math.round(this.totalParticleCount * (1 - tailFrac * 0.95));
+    }
+    this.particles.geometry.setDrawRange(0, Math.max(0, visibleCount));
+  }
+
+  setVisible(v) {
+    this.group.visible = v;
+  }
+}
+
+const dissolver3D = new Dissolver3D();
+
+/* ═══════════════════════════════════════════════════════════════
+   차트 (3개)
+   ═══════════════════════════════════════════════════════════════ */
+class MiniChart {
+  constructor(canvas, opts) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.opts = opts;
+    this.resize();
+  }
+  resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const cw = this.canvas.clientWidth || 300;
+    const ch = this.canvas.clientHeight || 200;
+    this.canvas.width = cw * dpr;
+    this.canvas.height = ch * dpr;
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.scale(dpr, dpr);
+    this.W = cw;
+    this.H = ch;
+  }
+  drawAxes(xMax, yMin, yMax, xUnit) {
+    const { ctx, W, H } = this;
+    const padL = 50, padR = 12, padT = 10, padB = 26;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    ctx.strokeStyle = '#2d3548'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText((yMin + (i/4)*(yMax-yMin)).toFixed(1), padL - 4, y + 4);
+    }
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+      const x = padL + (i/4) * plotW;
+      ctx.fillText(((i/4)*xMax).toFixed(0)+(xUnit||'s'), x, H - 6);
+    }
+    return { padL, padT, plotW, plotH };
+  }
+  drawLine(xData, yData, color, dashed=false, layout=null) {
+    if (xData.length < 2) return;
+    const { ctx } = this;
+    const xMax = layout ? layout.xMax : Math.max(xData[xData.length-1], 60);
+    const yMin = layout ? layout.yMin : this.opts.yMin;
+    const yMax = layout ? layout.yMax : this.opts.yMax;
+    const padL = layout ? layout.padL : 50;
+    const padT = layout ? layout.padT : 10;
+    const plotW = layout ? layout.plotW : this.W - 62;
+    const plotH = layout ? layout.plotH : this.H - 36;
+
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    if (dashed) ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    xData.forEach((x, i) => {
+      const px = padL + (x / xMax) * plotW;
+      const py = padT + plotH - ((yData[i] - yMin) / (yMax - yMin)) * plotH;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const lx = padL + (xData[xData.length-1] / xMax) * plotW;
+    const ly = padT + plotH - ((yData[yData.length-1] - yMin) / (yMax - yMin)) * plotH;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  /* D32 단순 + 이론값 비교 (점선) */
+  drawWithReference(xData, yData, color, refY, measuredPoints) {
+    const { ctx, W, H } = this;
+    ctx.clearRect(0, 0, W, H);
+    if (xData.length < 2 && refY === null) return;
+
+    const xMax = Math.max(xData.length ? xData[xData.length-1] : 0, 60);
+    const yMin = this.opts.yMin;
+    const yMax = this.opts.yMax;
+    const layout = this.drawAxes(xMax, yMin, yMax);
+    layout.xMax = xMax; layout.yMin = yMin; layout.yMax = yMax;
+
+    /* 이론 reference (점선 가로선) */
+    if (refY !== null && !isNaN(refY)) {
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      const refPy = layout.padT + layout.plotH - ((refY - yMin) / (yMax - yMin)) * layout.plotH;
+      ctx.beginPath();
+      ctx.moveTo(layout.padL, refPy);
+      ctx.lineTo(layout.padL + layout.plotW, refPy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 라벨
+      ctx.fillStyle = '#94a3b8'; ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText(`이론값 ${refY.toFixed(1)}`, layout.padL + 4, refPy - 4);
+    }
+    /* 시뮬 데이터 (실선) */
+    if (xData.length >= 2) {
+      this.drawLine(xData, yData, color, false, layout);
+    }
+    /* 실측 데이터 (검은 삼각형 마커) — V9.9 신규 */
+    if (measuredPoints && measuredPoints.length > 0) {
+      ctx.strokeStyle = '#f1f5f9';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      measuredPoints.forEach((pt, i) => {
+        const px = layout.padL + (pt.t / xMax) * layout.plotW;
+        const py = layout.padT + layout.plotH - ((pt.D32 - yMin) / (yMax - yMin)) * layout.plotH;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f1f5f9';
+      measuredPoints.forEach(pt => {
+        const px = layout.padL + (pt.t / xMax) * layout.plotW;
+        const py = layout.padT + layout.plotH - ((pt.D32 - yMin) / (yMax - yMin)) * layout.plotH;
+        ctx.beginPath();
+        ctx.moveTo(px, py - 5);
+        ctx.lineTo(px - 4, py + 3);
+        ctx.lineTo(px + 4, py + 3);
+        ctx.closePath();
+        ctx.fill();
+      });
+      // 범례
+      ctx.fillStyle = '#f1f5f9'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText('▲ 실측', layout.padL + 6, layout.padT + 16);
+      ctx.fillStyle = color;
+      ctx.fillText('— 시뮬', layout.padL + 6, layout.padT + 30);
+    }
+  }
+  /* V9.14 — 이중 Y축 통합 차트 (D32 좌축 + H-Index 우축) */
+  drawDualAxis(xData, d32Data, hData, refD32, measuredPoints) {
+    const { ctx, W, H } = this;
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 46, padR = 46, padT = 14, padB = 24;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const xMax = Math.max(xData.length ? xData[xData.length-1] : 0, 60);
+    const y1Min = 15, y1Max = 130;   // 좌축: D32 (μm)
+    const y2Min = 0,  y2Max = 100;   // 우축: H-Index (%)
+
+    const D32_COLOR = '#60a5fa';     // 파랑
+    const HIDX_COLOR = '#a78bfa';    // 보라
+    const D32_TARGET = 30;
+    const HIDX_TARGET = 80;
+
+    // 좌표 변환 헬퍼
+    const xPx = t => padL + (t / xMax) * plotW;
+    const y1Px = v => padT + plotH - ((v - y1Min) / (y1Max - y1Min)) * plotH;
+    const y2Px = v => padT + plotH - ((v - y2Min) / (y2Max - y2Min)) * plotH;
+
+    /* ── 격자 (가로선) ── */
+    ctx.strokeStyle = '#2d3548'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    }
+
+    /* ── 좌·우 축 (색깔 입혀서 매칭 명확화) ── */
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = D32_COLOR;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.stroke();
+    ctx.strokeStyle = HIDX_COLOR;
+    ctx.beginPath(); ctx.moveTo(W - padR, padT); ctx.lineTo(W - padR, padT + plotH); ctx.stroke();
+    // X축
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + plotH); ctx.lineTo(W - padR, padT + plotH); ctx.stroke();
+
+    /* ── 좌축 라벨 (D32 μm) ── */
+    ctx.font = '10px system-ui'; ctx.fillStyle = D32_COLOR; ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const yVal = y1Min + (i / 4) * (y1Max - y1Min);
+      ctx.fillText(yVal.toFixed(0), padL - 5, y1Px(yVal) + 3);
+    }
+    /* ── 우축 라벨 (H-Index %) ── */
+    ctx.fillStyle = HIDX_COLOR; ctx.textAlign = 'left';
+    for (let i = 0; i <= 4; i++) {
+      const yVal = y2Min + (i / 4) * (y2Max - y2Min);
+      ctx.fillText(yVal.toFixed(0), W - padR + 5, y2Px(yVal) + 3);
+    }
+    /* ── 축 단위 표시 (위쪽 작게) ── */
+    ctx.font = '9px system-ui';
+    ctx.fillStyle = D32_COLOR;  ctx.textAlign = 'right';
+    ctx.fillText('μm', padL - 5, padT - 3);
+    ctx.fillStyle = HIDX_COLOR; ctx.textAlign = 'left';
+    ctx.fillText('%', W - padR + 5, padT - 3);
+    /* ── X축 단위 ── */
+    ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'; ctx.font = '10px system-ui';
+    ctx.fillText('0s', padL, H - 6);
+    ctx.fillText(`${xMax.toFixed(0)}s`, W - padR, H - 6);
+
+    /* ── 합격선: D32 30μm (파랑 점선 + 라벨) ── */
+    ctx.strokeStyle = D32_COLOR + '80'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padL, y1Px(D32_TARGET)); ctx.lineTo(W - padR, y1Px(D32_TARGET));
+    ctx.stroke();
+    /* ── 합격선: H-Index 80% (보라 점선 + 라벨) ── */
+    ctx.strokeStyle = HIDX_COLOR + '80';
+    ctx.beginPath();
+    ctx.moveTo(padL, y2Px(HIDX_TARGET)); ctx.lineTo(W - padR, y2Px(HIDX_TARGET));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 적합 한계 라벨 (좌측 안쪽에 작게) — V12: '목표' → '적합 한계'
+    ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+    ctx.fillStyle = D32_COLOR;  ctx.fillText(`적합 한계 D₃₂ ${D32_TARGET}μm`, padL + 4, y1Px(D32_TARGET) - 3);
+    ctx.fillStyle = HIDX_COLOR; ctx.fillText(`권장 H ${HIDX_TARGET}%`,        padL + 4, y2Px(HIDX_TARGET) + 11);
+
+    /* ── 이론 D32 reference (회색 점선) ── */
+    if (refD32 !== null && !isNaN(refD32) && refD32 >= y1Min && refD32 <= y1Max) {
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(padL, y1Px(refD32)); ctx.lineTo(W - padR, y1Px(refD32));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '9px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText(`이론 ${refD32.toFixed(1)}`, W - padR - 4, y1Px(refD32) - 3);
+    }
+
+    /* ── D32 라인 (파랑 실선) ── */
+    if (xData.length >= 2) {
+      ctx.strokeStyle = D32_COLOR; ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let i = 0; i < xData.length; i++) {
+        const px = xPx(xData[i]);
+        const py = y1Px(d32Data[i]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    /* ── H-Index 라인 (보라 실선) ── */
+    if (xData.length >= 2 && hData.length >= 2) {
+      ctx.strokeStyle = HIDX_COLOR; ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let i = 0; i < xData.length; i++) {
+        const px = xPx(xData[i]);
+        const py = y2Px(hData[i]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    /* ── 현재값 마커 (각 라인 끝에 큰 원 + 좌우 축 쪽으로 작은 화살표) ── */
+    if (xData.length >= 2) {
+      const lastX = xPx(xData[xData.length - 1]);
+      const lastD32 = d32Data[d32Data.length - 1];
+      const lastH = hData[hData.length - 1];
+      // D32 마커
+      ctx.fillStyle = D32_COLOR;
+      ctx.beginPath();
+      ctx.arc(lastX, y1Px(lastD32), 4, 0, Math.PI * 2); ctx.fill();
+      // H-Index 마커
+      ctx.fillStyle = HIDX_COLOR;
+      ctx.beginPath();
+      ctx.arc(lastX, y2Px(lastH), 4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    /* ── 실측 D32 점 (흰 삼각형) ── */
+    if (measuredPoints && measuredPoints.length > 0) {
+      ctx.fillStyle = '#f1f5f9';
+      measuredPoints.forEach(pt => {
+        if (pt.D32 < y1Min || pt.D32 > y1Max) return;
+        const px = xPx(pt.t);
+        const py = y1Px(pt.D32);
+        ctx.beginPath();
+        ctx.moveTo(px, py - 5);
+        ctx.lineTo(px - 4, py + 3);
+        ctx.lineTo(px + 4, py + 3);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+
+    /* ── 우상단 범례 ── */
+    ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    const lgX = padL + 8, lgY = padT + 14;
+    ctx.fillStyle = D32_COLOR;  ctx.fillRect(lgX,      lgY - 2, 12, 2.5);
+    ctx.fillStyle = '#cbd5e1';  ctx.fillText('D₃₂ (좌축)', lgX + 16, lgY + 2);
+    ctx.fillStyle = HIDX_COLOR; ctx.fillRect(lgX + 78, lgY - 2, 12, 2.5);
+    ctx.fillStyle = '#cbd5e1';  ctx.fillText('H-Index (우축)', lgX + 94, lgY + 2);
+  }
+  /* 막대그래프 (가마별 ε̄) */
+  drawBarChart(labels, values, currentLabel) {
+    const { ctx, W, H } = this;
+    ctx.clearRect(0, 0, W, H);
+    const padL = 40, padR = 8, padT = 6, padB = 30;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const yMax = Math.max(...values) * 1.1;
+    const yMin = 0;
+    const barW = plotW / values.length * 0.7;
+
+    // y axis (어두운 테마)
+    ctx.strokeStyle = '#2d3548'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#64748b'; ctx.font = '9px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText(((i/4) * yMax).toFixed(2), padL - 3, y + 3);
+    }
+
+    values.forEach((v, i) => {
+      const x = padL + (i + 0.15) * (plotW / values.length);
+      const py = padT + plotH - (v / yMax) * plotH;
+      const isCurrent = labels[i] === currentLabel;
+      ctx.fillStyle = isCurrent ? '#60a5fa' : '#3d4660';
+      ctx.fillRect(x, py, barW, padT + plotH - py);
+      // 값 표시
+      ctx.fillStyle = isCurrent ? '#f1f5f9' : '#94a3b8';
+      ctx.font = isCurrent ? 'bold 10px system-ui' : '9px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(v.toFixed(1), x + barW/2, py - 3);
+      // 라벨
+      ctx.fillStyle = isCurrent ? '#f1f5f9' : '#64748b';
+      ctx.font = isCurrent ? 'bold 9px system-ui' : '9px system-ui';
+      ctx.fillText(labels[i].replace('V-', ''), x + barW/2, H - 14);
+    });
+    ctx.fillStyle = '#64748b'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('가마 (L)', padL + plotW/2, H - 2);
+  }
+
+  /* 5종 가마 D32 동시 비교 차트 (Figure 4) */
+  drawMultiVesselD32(vesselsHistory, currentKey) {
+    const { ctx, W, H } = this;
+    ctx.clearRect(0, 0, W, H);
+    const padL = 40, padR = 8, padT = 6, padB = 18;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const yMin = 15;
+    const yMax = 130;
+
+    let xMax = 60;
+    for (const key in vesselsHistory) {
+      if (vesselsHistory[key].t.length > 0) {
+        xMax = Math.max(xMax, vesselsHistory[key].t[vesselsHistory[key].t.length - 1]);
+      }
+    }
+
+    ctx.strokeStyle = '#2d3548'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#64748b'; ctx.font = '9px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText((yMin + (i/4)*(yMax-yMin)).toFixed(0), padL - 3, y + 3);
+    }
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+      const x = padL + (i/4) * plotW;
+      ctx.fillText(((i/4)*xMax).toFixed(0)+'s', x, H - 4);
+    }
+
+    const vesselColors = {
+      'V-100':  '#fbbf24',
+      'V-300':  '#a3e635',
+      'V-500':  '#60a5fa',
+    };
+
+    Object.keys(vesselsHistory).forEach(key => {
+      const hist = vesselsHistory[key];
+      if (hist.t.length < 2) return;
+      const isCurrent = key === currentKey;
+      ctx.strokeStyle = vesselColors[key];
+      ctx.lineWidth = isCurrent ? 2.5 : 1.2;
+      ctx.globalAlpha = isCurrent ? 1.0 : 0.7;
+      ctx.beginPath();
+      hist.t.forEach((t, i) => {
+        const px = padL + (t / xMax) * plotW;
+        const py = padT + plotH - ((hist.D32[i] - yMin) / (yMax - yMin)) * plotH;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      const lt = hist.t[hist.t.length - 1];
+      const ld = hist.D32[hist.D32.length - 1];
+      const lx = padL + (lt / xMax) * plotW;
+      const ly = padT + plotH - ((ld - yMin) / (yMax - yMin)) * plotH;
+      ctx.fillStyle = vesselColors[key];
+      ctx.beginPath(); ctx.arc(lx, ly, isCurrent ? 3.5 : 2, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+
+    let lgY = padT + 4;
+    ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+    Object.keys(vesselColors).forEach(key => {
+      ctx.fillStyle = vesselColors[key];
+      ctx.fillRect(W - padR - 60, lgY, 12, 2);
+      ctx.fillStyle = key === currentKey ? '#f1f5f9' : '#94a3b8';
+      ctx.font = key === currentKey ? 'bold 9px system-ui' : '9px system-ui';
+      ctx.fillText(key, W - padR - 45, lgY + 4);
+      lgY += 11;
+    });
+  }
+
+  /* 입자 크기 분포 (DSD) */
+  drawDSD(snapshots) {
+    const { ctx, W, H } = this;
+    ctx.clearRect(0, 0, W, H);
+    const padL = 50, padR = 12, padT = 10, padB = 26;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const xMin_log = Math.log10(10);
+    const xMax_log = Math.log10(200);
+
+    ctx.strokeStyle = '#2d3548'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText((i/4).toFixed(2), padL - 4, y + 4);
+    }
+    ctx.textAlign = 'center';
+    [10, 30, 100, 200].forEach(xVal => {
+      const px = padL + (Math.log10(xVal) - xMin_log) / (xMax_log - xMin_log) * plotW;
+      ctx.fillText(xVal + 'μm', px, H - 6);
+    });
+
+    // 시간 시점별 분포 그리기 (최대 4개 스냅샷)
+    const colors = ['#94a3b8', '#fbbf24', '#fb923c', '#dc2626']; // 회→황→주→빨 (시간 흐름)
+    const labels = ['초기 (t=0)', '초기', '중간', '평형'];
+    const nSnap = Math.min(snapshots.length, 4);
+
+    for (let i = 0; i < nSnap; i++) {
+      const snap = snapshots[i];
+      const dist = snap.distribution;
+      const D32 = snap.D32;
+      ctx.strokeStyle = colors[i] || '#60a5fa';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      if (snap.pbmDist && snap.pbmDist.length > 0) {
+        /* ── V11 — PBM이 계산한 실제 DSD를 그림 (추정 아님) ── */
+        const pd = snap.pbmDist;
+        for (let j = 0; j < pd.length; j++) {
+          const xl = Math.log10(Math.max(pd[j].d, 1));
+          const px = padL + (xl - xMin_log) / (xMax_log - xMin_log) * plotW;
+          const py = padT + plotH - pd[j].v * plotH;
+          if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+      } else {
+        // 기존 — log-normal 추정 분포 (Calabrese 모드)
+        const sigma_log = Math.max(0.15, 0.4 - (i * 0.07));
+        const center_log = Math.log10(D32);
+        const points = 50;
+        for (let j = 0; j < points; j++) {
+          const x_log = xMin_log + (j / (points - 1)) * (xMax_log - xMin_log);
+          const px = padL + (j / (points - 1)) * plotW;
+          const z = (x_log - center_log) / sigma_log;
+          const y_val = Math.exp(-0.5 * z * z);
+          const py = padT + plotH - y_val * plotH;
+          if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+    }
+
+    // 범례 (우측 상단)
+    let lgY = padT + 6;
+    ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+    for (let i = 0; i < nSnap; i++) {
+      ctx.fillStyle = colors[i];
+      ctx.fillRect(W - padR - 90, lgY, 16, 3);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(`t=${snapshots[i].t.toFixed(0)}s`, W - padR - 70, lgY + 5);
+      lgY += 14;
+    }
+  }
+}
+
+const chartD32 = new MiniChart(document.getElementById('chart-d32'), { yMin: 15, yMax: 130 });
+const chartDsd = new MiniChart(document.getElementById('chart-dsd'), { yMin: 0, yMax: 1 });
+
+/* ═══════════════════════════════════════════════════════════════
+   UI 바인딩
+   ═══════════════════════════════════════════════════════════════ */
+window.toggleSection = function(headerEl) {
+  headerEl.parentElement.classList.toggle('collapsed');
+};
+
+/* ─── 제형 타입 토글 (V9.9 신규) ─── */
+document.querySelectorAll('.type-btn[data-type]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.type-btn[data-type]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    simState.emulsionType = btn.dataset.type;
+    // 타입에 따라 안내 텍스트 변경
+    const info = document.getElementById('type-info');
+    if (simState.emulsionType === 'OW') {
+      info.textContent = 'O/W: 수상 ↑ → 점도 ↓ / 유상 ↑ → 점도 ↑, 깨질 위험';
+    } else {
+      info.textContent = 'W/O: 유상 ↑ → 점도 ↓ / 수상 ↑ → 점도 ↑, 깨질 위험';
+    }
+    // 입자 재구성 (외상/내상 색상 반전)
+    vessel3D.buildParticles(parseInt(document.getElementById('particle-count').value));
+    // V10 — 용해조 입자 색상도 갱신
+    dissolver3D.refreshParticleColors();
+    updateInfoOverlay();
+    drawAllCharts();
+  });
+});
+
+document.querySelectorAll('.vessel-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.vessel-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const key = btn.dataset.vessel;
+    vessel3D.build(key);
+    vessel3D.buildParticles(parseInt(document.getElementById('particle-count').value));
+    simState.vesselKey = key;
+    resetSimulation();
+  });
+});
+
+/* ─── V14: 시뮬레이션 모델 토글 제거 — 항상 PBM 모드 ─── */
+
+/* 점증제 농도 슬라이더 */
+document.getElementById('thickener').addEventListener('input', (e) => {
+  simState.thickener = +e.target.value;
+  document.getElementById('thickener-val').textContent = (+e.target.value).toFixed(1);
+  // V14: 점증제 변경 시 점도가 즉시 갱신되도록 (calcViscosity가 thickener를 읽음)
+  updateInfoOverlay();
+});
+
+/* RPM 슬라이더 */
+const sliderHomo = document.getElementById('rpm-homo');
+const sliderPaddle = document.getElementById('rpm-paddle');
+const sliderScraper = document.getElementById('rpm-scraper');
+sliderHomo.addEventListener('input', () => {
+  simState.homoOmega = +sliderHomo.value;
+  document.getElementById('rpm-homo-val').textContent = sliderHomo.value;
+  updateInfoOverlay();
+});
+sliderPaddle.addEventListener('input', () => {
+  simState.paddleOmega = +sliderPaddle.value;
+  document.getElementById('rpm-paddle-val').textContent = sliderPaddle.value;
+});
+sliderScraper.addEventListener('input', () => {
+  simState.scraperOmega = +sliderScraper.value;
+  document.getElementById('rpm-scraper-val').textContent = sliderScraper.value;
+});
+
+/* 환경 슬라이더 */
+document.getElementById('set-temp').addEventListener('input', (e) => {
+  simState.setTemp_C = +e.target.value;
+  document.getElementById('set-temp-val').textContent = e.target.value;
+});
+document.getElementById('target-time').addEventListener('input', (e) => {
+  simState.targetTime_min = +e.target.value;
+  document.getElementById('target-time-val').textContent = e.target.value;
+});
+
+/* 입자 개수 */
+document.getElementById('particle-count').addEventListener('input', (e) => {
+  document.getElementById('particle-count-val').textContent = e.target.value;
+  vessel3D.buildParticles(parseInt(e.target.value));
+});
+
+/* 배합 슬라이더 (모든 ingredient) */
+document.querySelectorAll('input[type="range"][data-ing]').forEach(slider => {
+  slider.addEventListener('input', (e) => {
+    const key = e.target.dataset.ing;
+    formulation[key] = parseFloat(e.target.value);
+    document.querySelector(`span.val[data-ing="${key}"]`).textContent = e.target.value;
+    updateFormulationDisplay();
+    // 입자 재구성 (수상/유상 비율 변경 반영)
+    vessel3D.buildParticles(parseInt(document.getElementById('particle-count').value));
+    updateInfoOverlay();
+  });
+});
+
+function updateFormulationDisplay() {
+  const total = getAqueousTotal() + getOilTotal();
+  const totalDisp = document.getElementById('total-display');
+  const totalPct = document.getElementById('total-pct');
+  totalPct.textContent = total.toFixed(1);
+  if (total > 105) {
+    totalDisp.classList.add('over');
+  } else {
+    totalDisp.classList.remove('over');
+  }
+}
+
+/* 시뮬 제어 */
+document.getElementById('btn-start').addEventListener('click', () => {
+  // V10 — phase 0(대기) 또는 6(완료)에서 시작 → 공정 처음부터
+  if (simState.phase === 0 || simState.phase === 6) {
+    startProcess();
+    document.getElementById('btn-start').textContent = '⏸ 일시정지';
+  } else {
+    // 진행 중 → 토글
+    simState.running = !simState.running;
+    document.getElementById('btn-start').textContent = simState.running ? '⏸ 일시정지' : '▶ 재개';
+  }
+});
+
+// V10 — 다음 단계로 (수동 모드용)
+document.getElementById('btn-next-phase').addEventListener('click', () => {
+  if (simState.phase >= 1 && simState.phase <= 5) advancePhase();
+});
+
+// V10 — 모드 토글 (자동/수동)
+document.getElementById('mode-auto').addEventListener('click', () => {
+  simState.autoMode = true;
+  document.getElementById('mode-auto').classList.add('active');
+  document.getElementById('mode-manual').classList.remove('active');
+  document.getElementById('btn-next-phase').style.display = 'none';
+});
+document.getElementById('mode-manual').addEventListener('click', () => {
+  simState.autoMode = false;
+  document.getElementById('mode-manual').classList.add('active');
+  document.getElementById('mode-auto').classList.remove('active');
+  document.getElementById('btn-next-phase').style.display = simState.phase >= 1 && simState.phase <= 5 ? 'block' : 'none';
+});
+
+// V10 v2 — QC 모드 전환 (점도 / 경도)
+function setQCMode(mode) {
+  simState.qcSpec.mode = mode;
+  document.getElementById('qc-mode-visc').classList.toggle('active', mode === 'viscosity');
+  document.getElementById('qc-mode-hard').classList.toggle('active', mode === 'hardness');
+  // 활성 버튼 스타일
+  document.getElementById('qc-mode-visc').style.background = mode === 'viscosity' ? '#1f2937' : '#0f1320';
+  document.getElementById('qc-mode-visc').style.color      = mode === 'viscosity' ? '#e5e7eb' : '#94a3b8';
+  document.getElementById('qc-mode-hard').style.background = mode === 'hardness'  ? '#1f2937' : '#0f1320';
+  document.getElementById('qc-mode-hard').style.color      = mode === 'hardness'  ? '#e5e7eb' : '#94a3b8';
+  // 단위 변경
+  const unit = mode === 'viscosity' ? 'cps' : 'mm';
+  document.getElementById('qc-min-unit').textContent = unit;
+  document.getElementById('qc-max-unit').textContent = unit;
+  // 측정 정보 텍스트
+  document.getElementById('qc-spec-info').textContent = mode === 'viscosity'
+    ? '측정: Brookfield S4·12rpm'
+    : '측정: 15Φ probe·6cm/min';
+  // 모드 전환 시 기본값 다시 설정
+  if (mode === 'viscosity') {
+    document.getElementById('qc-min-input').value = 15000;
+    document.getElementById('qc-max-input').value = 40000;
+    document.getElementById('qc-min-input').step = 100;
+    document.getElementById('qc-max-input').step = 100;
+  } else {
+    document.getElementById('qc-min-input').value = 20;
+    document.getElementById('qc-max-input').value = 30;
+    document.getElementById('qc-min-input').step = 1;
+    document.getElementById('qc-max-input').step = 1;
+  }
+  applyQCInputs();
+}
+
+function applyQCInputs() {
+  const minVal = parseFloat(document.getElementById('qc-min-input').value) || 0;
+  const maxVal = parseFloat(document.getElementById('qc-max-input').value) || 0;
+  simState.qcSpec.min = Math.min(minVal, maxVal);
+  simState.qcSpec.max = Math.max(minVal, maxVal);
+  // 5단계 진행 중이면 즉시 재판정
+  if (simState.phase === 5 || simState.phase === 6) {
+    simState.finalQC = Physics.evaluateFinalQuality(
+      simState.D32, simState.hIndex, simState.mu_eff, simState.qcSpec
+    );
+  }
+  updateQCPanel();
+}
+
+document.getElementById('qc-mode-visc').addEventListener('click', () => setQCMode('viscosity'));
+document.getElementById('qc-mode-hard').addEventListener('click', () => setQCMode('hardness'));
+document.getElementById('qc-min-input').addEventListener('input', applyQCInputs);
+document.getElementById('qc-max-input').addEventListener('input', applyQCInputs);
+
+// 프리셋 빠른 설정
+document.querySelectorAll('.qc-preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const presets = {
+      'light_lotion':   { mode: 'viscosity', min: 1000,  max: 8000  },
+      'general_cream':  { mode: 'viscosity', min: 15000, max: 40000 },
+      'soft_cream':     { mode: 'hardness',  min: 30,    max: 40    },
+      'standard_cream': { mode: 'hardness',  min: 20,    max: 30    },
+      'rich_cream':     { mode: 'hardness',  min: 12,    max: 20    },
+    };
+    const p = presets[btn.dataset.preset];
+    if (!p) return;
+    setQCMode(p.mode);
+    document.getElementById('qc-min-input').value = p.min;
+    document.getElementById('qc-max-input').value = p.max;
+    applyQCInputs();
+  });
+});
+document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+document.getElementById('btn-nopt').addEventListener('click', () => {
+  const N_rec = Physics.calcRecommendedRPM(vessel3D.currentVessel, VESSELS['V-500'], 2000);
+  sliderHomo.value = Math.min(3500, Math.max(0, Math.round(N_rec)));
+  simState.homoOmega = +sliderHomo.value;
+  document.getElementById('rpm-homo-val').textContent = sliderHomo.value;
+  alert(`현재 가마 (${vessel3D.currentVesselKey})의 권장 호모 RPM:\n${Math.round(N_rec)} rpm\n\n(V-500 기준 2000 rpm 등-ε 적용)`);
+  updateInfoOverlay();
+});
+document.getElementById('btn-snapshot').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = `${vessel3D.currentVesselKey}_${Date.now()}.png`;
+  link.href = renderer.domElement.toDataURL();
+  link.click();
+});
+
+document.querySelectorAll('#speed-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#speed-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    simState.speedMultiplier = +btn.dataset.speed;
+    document.getElementById('speed-val').textContent = btn.dataset.speed + '×';
+  });
+});
+
+/* 달성/미달성 (사용자 수동 표시) */
+document.getElementById('btn-pass').addEventListener('click', () => {
+  document.getElementById('btn-pass').classList.add('pass');
+  document.getElementById('btn-fail').classList.remove('fail');
+});
+document.getElementById('btn-fail').addEventListener('click', () => {
+  document.getElementById('btn-fail').classList.add('fail');
+  document.getElementById('btn-pass').classList.remove('pass');
+});
+
+/* CSV */
+document.getElementById('btn-csv').addEventListener('click', () => {
+  if (simState.history.t.length === 0) {
+    alert('시뮬 데이터가 없습니다. ▶ 시작 먼저 누르세요.');
+    return;
+  }
+  const lines = [];
+  lines.push('# Emulsion Simulator V9.7');
+  lines.push(`# Generated: ${new Date().toISOString()}`);
+  lines.push(`# Vessel: ${vessel3D.currentVesselKey} (${vessel3D.currentVessel.code})`);
+  lines.push(`# Volume_L: ${vessel3D.currentVessel.volume_L}`);
+  lines.push(`# Homo_RPM: ${Math.round(simState.homoOmega)}`);
+  lines.push(`# Paddle_RPM: ${Math.round(simState.paddleOmega)}`);
+  lines.push(`# Scraper_RPM: ${Math.round(simState.scraperOmega)}`);
+  lines.push(`# Temp_C: ${simState.temp_C.toFixed(1)}`);
+  lines.push(`# Target_time_min: ${simState.targetTime_min}`);
+  lines.push(`# `);
+  lines.push(`# Formulation:`);
+  for (const k in formulation) lines.push(`#   ${k}: ${formulation[k]}`);
+  lines.push(`# `);
+  lines.push(`# SG: ${simState.sg.toFixed(3)}`);
+  lines.push(`# `);
+  lines.push('time_s,D32_um,mu_Pas,eps_Wkg,temp_C');
+  for (let i = 0; i < simState.history.t.length; i++) {
+    lines.push(`${simState.history.t[i]},${simState.history.D32[i]},${simState.history.mu[i]},${simState.history.eps[i]??''},${simState.temp_C.toFixed(1)}`);
+  }
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `simulation_${vessel3D.currentVesselKey}_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* 녹화 */
+/* ─── 검증 표 버튼 (V9.9, V12: 패널 제거됨 — 핸들러 비활성) ─── */
+const btnTableCsv = document.getElementById('btn-table-csv');
+if (btnTableCsv) btnTableCsv.addEventListener('click', () => {
+  const lines = [];
+  lines.push('# 가마별 검증 표 — Validation Data');
+  lines.push(`# Generated: ${new Date().toISOString()}`);
+  lines.push(`# Emulsion type: ${simState.emulsionType}`);
+  lines.push('# ');
+  lines.push('vessel,volume_L,rpm,simulated_D32_um,measured_D32_um,relative_error_pct,judgment');
+  Object.keys(VESSELS).forEach(key => {
+    const v = VESSELS[key];
+    const d = simState.validationData[key];
+    let relErr = '', judge = '';
+    if (d.measured !== null && d.simulated !== null) {
+      const e = Math.abs(d.measured - d.simulated) / d.measured;
+      relErr = (e * 100).toFixed(1);
+      judge = e < 0.15 ? 'PASS' : 'FAIL';
+    }
+    lines.push(`${key},${v.volume_L},${d.rpm ?? ''},${d.simulated !== null ? d.simulated.toFixed(2) : ''},${d.measured !== null ? d.measured.toFixed(2) : ''},${relErr},${judge}`);
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `validation_table_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-table-clear') && document.getElementById('btn-table-clear').addEventListener('click', () => {
+  if (!confirm('검증 표의 실측 데이터를 모두 초기화하시겠습니까?')) return;
+  for (const key in simState.validationData) {
+    simState.validationData[key].measured = null;
+  }
+  updateValidationTable();
+});
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordTimerInterval = null;
+document.getElementById('btn-rec-toggle').addEventListener('click', () => {
+  const btn = document.getElementById('btn-rec-toggle');
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    clearInterval(recordTimerInterval);
+    btn.textContent = '● 녹화';
+    btn.style.background = '';
+    btn.style.color = '';
+    return;
+  }
+  try {
+    const stream = canvas.captureStream(30);
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 5000000 });
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `simulation_${vessel3D.currentVesselKey}_${Date.now()}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      document.getElementById('rec-status').textContent = `저장 완료 (${(blob.size/1024/1024).toFixed(1)} MB)`;
+    };
+    mediaRecorder.start();
+    btn.textContent = '■ 녹화중';
+    btn.style.background = '#ef4444';
+    btn.style.color = '#fff';
+    const start = performance.now();
+    recordTimerInterval = setInterval(() => {
+      const sec = ((performance.now() - start) / 1000).toFixed(1);
+      document.getElementById('rec-status').textContent = `🔴 녹화 중... ${sec}s`;
+    }, 100);
+  } catch (e) {
+    alert('녹화 실패: ' + e.message);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   헬퍼
+   ═══════════════════════════════════════════════════════════════ */
+function resetSimulation() {
+  simState.running = false;
+  simState.t_sim = 0;
+  simState.D32 = 109.0;
+  simState.mu_eff = 5.0;
+  simState.hIndex = 0;
+  // V11 — PBM 분포 리셋 (PBM 모드면 초기 분포 재생성)
+  simState.pbmN = simState.simMode === 'pbm' ? Physics.PBM.initialN(109.0) : null;
+  simState.pbmSpan = 0;
+  // V10 — phase 리셋
+  simState.phase = 0;
+  simState.phaseTime = 0;
+  simState.dissolver = { dissolution: 0, dispersion: 0, completed: false };
+  simState.finalQC = null;
+  simState.history = { t: [], D32: [], mu: [], eps: [], hIndex: [] };
+  for (const key in simState.vesselsHistory) {
+    simState.vesselsHistory[key] = { t: [], D32: [], lastD32: 109.0 };
+  }
+  simState.dsdSnapshots = [{ t: 0, D32: 109.0, distribution: [] }];
+  document.getElementById('btn-start').textContent = '▶ 시작';
+  document.getElementById('btn-pass').classList.remove('pass');
+  document.getElementById('btn-fail').classList.remove('fail');
+  updateInfoOverlay();
+  drawAllCharts();
+  updateValidationTable();
+  updatePhaseBar();
+  updateProcessInfoPanel();
+}
+
+/* ─── 검증 표 (V9.9) ─── */
+function updateValidationTable() {
+  const tbody = document.getElementById('validation-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const currentKey = vessel3D.currentVesselKey;
+
+  Object.keys(VESSELS).forEach(key => {
+    const v = VESSELS[key];
+    const data = simState.validationData[key];
+    const row = document.createElement('tr');
+    if (key === currentKey) row.classList.add('current');
+
+    // 가마
+    const tdVessel = document.createElement('td');
+    tdVessel.textContent = key;
+    row.appendChild(tdVessel);
+
+    // RPM
+    const tdRpm = document.createElement('td');
+    if (data.rpm !== null) {
+      tdRpm.textContent = Math.round(data.rpm);
+    } else {
+      tdRpm.textContent = '−';
+      tdRpm.classList.add('empty-cell');
+    }
+    row.appendChild(tdRpm);
+
+    // 시뮬 D32
+    const tdSim = document.createElement('td');
+    if (data.simulated !== null) {
+      tdSim.textContent = data.simulated.toFixed(1);
+    } else {
+      tdSim.textContent = '−';
+      tdSim.classList.add('empty-cell');
+    }
+    row.appendChild(tdSim);
+
+    // 실측 D32 (input)
+    const tdMeas = document.createElement('td');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'measure-input';
+    input.placeholder = '실측';
+    input.step = '0.1';
+    input.min = '0';
+    input.value = data.measured !== null ? data.measured : '';
+    input.addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value);
+      simState.validationData[key].measured = isNaN(v) ? null : v;
+      updateValidationTable();
+    });
+    tdMeas.appendChild(input);
+    row.appendChild(tdMeas);
+
+    // 판정
+    const tdJudge = document.createElement('td');
+    const judge = document.createElement('div');
+    judge.className = 'table-status';
+    if (data.measured !== null && data.simulated !== null) {
+      const diff = Math.abs(data.measured - data.simulated);
+      const relErr = diff / data.measured;
+      if (relErr < 0.15) {
+        judge.classList.add('pass');
+        judge.textContent = `✓ ${(relErr * 100).toFixed(0)}%`;
+      } else {
+        judge.classList.add('fail');
+        judge.textContent = `✕ ${(relErr * 100).toFixed(0)}%`;
+      }
+    } else {
+      judge.classList.add('pending');
+      judge.textContent = '대기';
+    }
+    tdJudge.appendChild(judge);
+    row.appendChild(tdJudge);
+
+    tbody.appendChild(row);
+  });
+}
+
+function updateInfoOverlay() {
+  const v = vessel3D.currentVessel;
+  document.getElementById('vessel-title').textContent = v.code;
+  document.getElementById('info-volume').textContent = v.volume_L.toFixed(2);
+
+  const eps_raw = Physics.calcEpsilon(simState.homoOmega, v);
+  document.getElementById('info-eps').textContent = eps_raw.toFixed(2);
+
+  document.getElementById('info-d32').textContent = simState.D32.toFixed(1);
+  // V13: 공정 점도·비중 화면 표시 제거. 계산은 그대로 simState.mu_eff / simState.sg 에 보관 (크리밍 지수 등 내부 사용)
+  const _muEl = document.getElementById('info-mu');
+  if (_muEl) _muEl.textContent = simState.mu_eff.toFixed(2);
+  // V12 — PBM 모드의 Span은 D32 값 옆에 작게 표시 (라벨은 건드리지 않음)
+  // (Span 표시는 향후 PBM 차트 등에서 확장 가능)
+  // V9.13 — 혼합 균일도
+  const hElem = document.getElementById('info-hindex');
+  if (hElem) {
+    hElem.textContent = simState.hIndex.toFixed(1);
+    // 색상으로 직관적 표시: 80↑ 초록 / 60↑ 노랑 / 그 이하 회색
+    if (simState.hIndex >= 80)      hElem.style.color = '#10b981';
+    else if (simState.hIndex >= 60) hElem.style.color = '#fbbf24';
+    else                             hElem.style.color = '#94a3b8';
+  }
+
+  // 비중 (V13: 화면 표시 제거, 계산만 보관)
+  simState.sg = Physics.calcSpecificGravity(formulation);
+  const _sgEl = document.getElementById('info-sg');
+  if (_sgEl) _sgEl.textContent = simState.sg.toFixed(3);
+
+  // V12 — 목표 D₃₂(오픈소스) 표시 제거됨. 적합 범위 막대로 대체.
+  // 환경
+  document.getElementById('env-temp').textContent = simState.temp_C.toFixed(0);
+  document.getElementById('env-time').textContent = (simState.t_sim / 60).toFixed(1);
+
+  // 품질 + 안정성 검사 (V9.9)
+  const stability = Physics.checkStability(formulation, simState.emulsionType);
+  let q;
+  if (!stability.stable) {
+    q = { label: stability.warning, color: '#dc2626' };
+  } else {
+    q = Physics.evaluateQuality(simState.D32, simState.sg, simState.t_sim/60, simState.targetTime_min);
+    if (stability.warning) {
+      q.label = '⚠ ' + q.label;
+    }
+  }
+  const qBadge = document.getElementById('info-quality');
+  qBadge.textContent = q.label;
+  qBadge.style.background = q.color;
+
+  // 통합 차트 status: D32 ≤ 30μm 합격 + H-Index ≥ 80% 합격 → 둘 다면 초록 / 한쪽만 주황
+  const statusD32 = document.getElementById('status-d32');
+  if (simState.history.t.length < 5) {
+    statusD32.classList.remove('match', 'mismatch');
+  } else {
+    const d32Pass = simState.D32 <= 35;       // D32 35μm 이하면 OK (목표 30 + 여유 5)
+    const hPass   = simState.hIndex >= 80;    // H-Index 80% 이상이면 OK
+    if (d32Pass && hPass) {
+      statusD32.classList.add('match'); statusD32.classList.remove('mismatch');
+    } else if (d32Pass || hPass) {
+      statusD32.classList.add('mismatch'); statusD32.classList.remove('match');
+    } else {
+      statusD32.classList.remove('match', 'mismatch');
+    }
+  }
+}
+
+function drawAllCharts() {
+  const sigma = Physics.calcSurfaceTension(formulation);
+  const phi_d = Physics.calcInternalPhase(formulation, simState.emulsionType);
+  const refD32 = Physics.calcTheoreticalD32(vessel3D.currentVessel, simState.homoOmega, sigma, phi_d);
+
+  /* V9.14 — D32 + H-Index 통합 (이중 Y축) */
+  const measuredPoints = window.measuredD32Points || [];
+  chartD32.drawDualAxis(simState.history.t, simState.history.D32, simState.history.hIndex, refD32, measuredPoints);
+
+  /* DSD — 시간별 분포 */
+  if (simState.dsdSnapshots.length > 0) {
+    chartDsd.drawDSD(simState.dsdSnapshots);
+  } else {
+    chartDsd.drawDSD([{ t: 0, D32: simState.D32, distribution: [] }]);
+  }
+
+  /* V10 — 점도 차트 대신 공정 정보 패널 업데이트 */
+  updateProcessInfoPanel();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   V10 — Phase 시퀀서 헬퍼 함수들
+   ═══════════════════════════════════════════════════════════════ */
+
+// 다음 단계로 진행
+function advancePhase() {
+  if (simState.phase < 5) {
+    simState.phase++;
+    simState.phaseTime = 0;
+    // V10 — 1→2 전환 시 분산도 리셋 (이번엔 용해조에서 새로 분산해야 하므로)
+    if (simState.phase === 2) {
+      simState.dissolver = { dissolution: 0, dispersion: 0, completed: false };
+    }
+    // [3]단계 진입 시 D32 초기값 리셋 (이때부터 진짜 유화 시작)
+    if (simState.phase === 3) {
+      simState.D32 = 109.0;
+      simState.hIndex = 0;
+      simState.history = { t: [], D32: [], mu: [], eps: [], hIndex: [] };
+      simState.dsdSnapshots = [];
+    }
+  } else if (simState.phase === 5) {
+    simState.phase = 6;  // 완료
+    simState.running = false;
+    document.getElementById('btn-start').textContent = '▶ 다시 시작';
+  }
+  updatePhaseBar();
+  updateProcessInfoPanel();
+}
+
+// 단계 진행 바 UI 업데이트
+function updatePhaseBar() {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.querySelector(`.phase-step[data-phase="${i}"]`);
+    if (!el) continue;
+    el.classList.remove('active', 'completed');
+    if (i < simState.phase || (simState.phase === 6)) el.classList.add('completed');
+    else if (i === simState.phase) el.classList.add('active');
+  }
+  // V10 v4 — 가마 라벨도 함께 업데이트
+  updateTankLabels();
+}
+
+// V10 v4 — 가마 라벨 (3D 오버레이) 업데이트
+function updateTankLabels() {
+  const dissolverEl = document.getElementById('label-dissolver');
+  const mainEl = document.getElementById('label-main');
+  const dissStatusEl = document.getElementById('label-dissolver-sub');
+  const mainStatusEl = document.getElementById('label-main-sub');
+  if (!dissolverEl || !mainEl || !dissStatusEl || !mainStatusEl) return;
+
+  const ph = simState.phase;
+  const ow = simState.emulsionType === 'OW';
+  const dissolverPhaseLabel = ow ? '유상' : '수상';
+  const mainPhaseLabel = ow ? '수상' : '유상';
+
+  // 클래스 초기화
+  dissolverEl.classList.remove('active', 'completed');
+  mainEl.classList.remove('active', 'completed');
+
+  if (ph === 0) {
+    dissStatusEl.textContent = `${dissolverPhaseLabel} (내상)`;
+    mainStatusEl.textContent = `${mainPhaseLabel} (외상)`;
+  } else if (ph === 1) {
+    dissStatusEl.textContent = `${dissolverPhaseLabel} 대기`;
+    mainStatusEl.textContent = `🔵 ${mainPhaseLabel} 분산 중`;
+    mainEl.classList.add('active');
+  } else if (ph === 2) {
+    dissStatusEl.textContent = `🟡 ${dissolverPhaseLabel} 분산 중`;
+    mainStatusEl.textContent = '✓ 분산 완료 (대기)';
+    dissolverEl.classList.add('active');
+    mainEl.classList.add('completed');
+  } else if (ph === 3) {
+    dissStatusEl.textContent = '✓ 투입 완료';
+    mainStatusEl.textContent = '⚡ 유화 (호모 3500)';
+    dissolverEl.classList.add('completed');
+    mainEl.classList.add('active');
+  } else if (ph === 4) {
+    dissStatusEl.textContent = '-';
+    mainStatusEl.textContent = '🌡 냉각 + 재분산';
+    dissolverEl.classList.add('completed');
+    mainEl.classList.add('active');
+  } else if (ph === 5) {
+    dissStatusEl.textContent = '-';
+    mainStatusEl.textContent = '📋 30℃ QC 측정';
+    dissolverEl.classList.add('completed');
+    mainEl.classList.add('active');
+  } else if (ph === 6) {
+    dissStatusEl.textContent = '-';
+    mainStatusEl.textContent = '✓ 출하';
+    dissolverEl.classList.add('completed');
+    mainEl.classList.add('completed');
+  }
+
+  // 큰 단계 라벨
+  const bigEl = document.getElementById('phase-label-big');
+  if (bigEl) {
+    const cfg = simState.phaseConfig[ph];
+    if (ph === 0) bigEl.textContent = '⏸ 대기 중 — ▶ 시작 버튼을 눌러주세요';
+    else if (ph === 6) bigEl.textContent = '✓ 공정 완료 (출하)';
+    else bigEl.textContent = `[단계 ${ph}/5] ${cfg.name}`;
+  }
+}
+
+// V10 v2 — 용해도/분산도 패널 업데이트 (③번 박스)
+function updateDissolverPanel() {
+  const titleEl = document.getElementById('dissolver-title');
+  const subEl = document.getElementById('dissolver-subtitle');
+  const statusEl = document.getElementById('dissolver-status');
+  if (!titleEl) return;
+
+  const ph = simState.phase;
+
+  // 단계별 설명
+  let subtitle = '', status = '', diss = 0, disp = 0;
+  if (ph === 0) {
+    subtitle = '대기 중 — 단계 1·2에서 활성화';
+    status = '📋 ▶ 시작 버튼을 누르세요';
+    diss = 0; disp = 0;
+  } else if (ph === 1) {
+    const tank = simState.emulsionType === 'OW' ? '수상' : '유상';
+    subtitle = `[1] 메인 가마에서 ${tank} 분산 중`;
+    status = `🔵 메인 가마 (${tank}) 분산 진행`;
+    diss = simState.dissolver.dissolution;
+    disp = simState.dissolver.dispersion;
+  } else if (ph === 2) {
+    const tank = simState.emulsionType === 'OW' ? '유상' : '수상';
+    subtitle = `[2] 용해조에서 ${tank} 분산 중`;
+    status = `🟡 용해조 (${tank}) 분산 진행 — 좌측 3D에서 입자 확인`;
+    diss = simState.dissolver.dissolution;
+    disp = simState.dissolver.dispersion;
+  } else {
+    subtitle = '분산 완료 — 유화 단계로 진행';
+    status = '✓ 분산 완료';
+    diss = 100; disp = 100;
+  }
+  subEl.textContent = subtitle;
+  statusEl.textContent = status;
+
+  // 게이지 업데이트
+  const circumference = 263.9;  // 2 * π * 42
+  document.getElementById('val-dissolution').innerHTML = `${diss.toFixed(0)}<span>%</span>`;
+  document.getElementById('val-dispersion').innerHTML  = `${disp.toFixed(0)}<span>%</span>`;
+  document.getElementById('circle-dissolution').style.strokeDashoffset =
+    (circumference * (1 - diss / 100)).toFixed(2);
+  document.getElementById('circle-dispersion').style.strokeDashoffset =
+    (circumference * (1 - disp / 100)).toFixed(2);
+  // 95% 이상이면 초록 글로우
+  document.getElementById('ring-dissolution').classList.toggle('complete', diss >= 95);
+  document.getElementById('ring-dispersion').classList.toggle('complete', disp >= 95);
+}
+
+// V10 v2 — 최종 QC 패널 업데이트 (④번 박스)
+function updateQCPanel() {
+  const ph = simState.phase;
+  const subEl = document.getElementById('qc-subtitle');
+  const bigNumEl = document.getElementById('qc-big-num');
+  const bigUnitEl = document.getElementById('qc-big-unit');
+  const bigLabelEl = document.getElementById('qc-big-label');
+  if (!subEl) return;
+
+  // [5]단계 또는 완료(6) 상태에서만 측정값 표시
+  if (ph === 5 || ph === 6) {
+    if (!simState.finalQC) return;
+    const fq = simState.finalQC;
+    subEl.textContent = ph === 6 ? '✓ 공정 완료 — 출하 라벨 발행' : '[5] 30℃ 측정 중';
+    // 큰 값
+    if (fq.qcMode === 'viscosity') {
+      bigNumEl.textContent = Math.round(fq.qcValue).toLocaleString();
+      bigUnitEl.textContent = 'cps';
+      bigLabelEl.textContent = '출하 점도 (S4·12rpm)';
+    } else {
+      bigNumEl.textContent = fq.qcValue.toFixed(1);
+      bigUnitEl.textContent = 'mm';
+      bigLabelEl.textContent = '출하 경도 (15Φ·6cm/min)';
+    }
+    // 스펙 범위 막대
+    updateQCRangeBar(fq);
+    // 미니 지표 3개
+    document.getElementById('qc-mini-d32').textContent = simState.D32.toFixed(1) + ' μm';
+    document.getElementById('qc-mini-hidx').textContent = simState.hIndex.toFixed(1) + '%';
+    document.getElementById('qc-mini-metric-label').textContent = fq.qcLabel;
+    if (fq.qcMode === 'viscosity') {
+      document.getElementById('qc-mini-metric').textContent = Math.round(fq.qcValue).toLocaleString();
+    } else {
+      document.getElementById('qc-mini-metric').textContent = fq.qcValue.toFixed(1) + ' mm';
+    }
+    // 패스/실패 마커
+    setMiniMark('qc-mini-d32-mark', fq.d32Pass);
+    setMiniMark('qc-mini-hidx-mark', fq.hPass);
+    setMiniMark('qc-mini-metric-mark', fq.qcPass);
+    // PASS/FAIL 도장
+    const stamp = document.getElementById('qc-verdict-stamp');
+    stamp.classList.remove('pass', 'fail', 'review');
+    if (fq.allPass) {
+      stamp.textContent = '✓ PASS — 출하 가능';
+      stamp.classList.add('pass');
+    } else {
+      const failCount = (!fq.d32Pass) + (!fq.hPass) + (!fq.qcPass);
+      if (failCount === 1) {
+        stamp.textContent = '△ REVIEW — 1개 미달';
+        stamp.classList.add('review');
+      } else {
+        stamp.textContent = '✗ FAIL — 재유화 필요';
+        stamp.classList.add('fail');
+      }
+    }
+  } else {
+    // 5단계 이전: 대기 표시
+    const phaseName = simState.phaseConfig[ph]?.name || '대기 중';
+    subEl.textContent = `[${ph}] ${phaseName} — 측정 대기`;
+    bigNumEl.textContent = '- - -';
+    bigUnitEl.textContent = simState.qcSpec.mode === 'viscosity' ? 'cps' : 'mm';
+    bigLabelEl.textContent = simState.qcSpec.mode === 'viscosity' ? '출하 점도 (예정)' : '출하 경도 (예정)';
+    // 스펙 막대만 표시
+    updateQCRangeBar(null);
+    // 미니 지표 (현재값 표시, 마커는 회색)
+    document.getElementById('qc-mini-d32').textContent = simState.D32.toFixed(1) + ' μm';
+    document.getElementById('qc-mini-hidx').textContent = simState.hIndex.toFixed(1) + '%';
+    document.getElementById('qc-mini-metric').textContent = '-';
+    document.getElementById('qc-mini-metric-label').textContent = simState.qcSpec.mode === 'viscosity' ? '점도' : '경도';
+    ['qc-mini-d32-mark', 'qc-mini-hidx-mark', 'qc-mini-metric-mark'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('pass', 'fail');
+      el.textContent = '·';
+    });
+    // 도장
+    const stamp = document.getElementById('qc-verdict-stamp');
+    stamp.classList.remove('pass', 'fail', 'review');
+    stamp.textContent = '대기';
+  }
+}
+
+// 스펙 범위 막대 업데이트
+function updateQCRangeBar(fq) {
+  const spec = simState.qcSpec;
+  const minEl = document.getElementById('qc-range-min');
+  const maxEl = document.getElementById('qc-range-max');
+  const specEl = document.getElementById('qc-range-spec');
+  const markerEl = document.getElementById('qc-range-marker');
+  // 표시 범위: 스펙 min~max를 중심으로 ±50% 여유
+  const range = spec.max - spec.min;
+  const displayMin = Math.max(0, spec.min - range * 0.5);
+  const displayMax = spec.max + range * 0.5;
+  // 라벨
+  if (spec.mode === 'viscosity') {
+    minEl.textContent = Math.round(displayMin).toLocaleString();
+    maxEl.textContent = Math.round(displayMax).toLocaleString();
+  } else {
+    minEl.textContent = displayMin.toFixed(0);
+    maxEl.textContent = displayMax.toFixed(0);
+  }
+  // 스펙 박스 위치
+  const specLeftPct = ((spec.min - displayMin) / (displayMax - displayMin)) * 100;
+  const specWidthPct = ((spec.max - spec.min) / (displayMax - displayMin)) * 100;
+  specEl.style.left = specLeftPct + '%';
+  specEl.style.width = specWidthPct + '%';
+  // 마커 위치
+  if (fq) {
+    const markerPct = ((fq.qcValue - displayMin) / (displayMax - displayMin)) * 100;
+    const clampedPct = Math.max(0, Math.min(100, markerPct));
+    markerEl.style.left = `calc(${clampedPct}% - 2px)`;
+    markerEl.classList.toggle('in-spec', fq.qcPass);
+    markerEl.classList.toggle('out-spec', !fq.qcPass);
+    markerEl.style.display = 'block';
+  } else {
+    markerEl.style.display = 'none';
+  }
+}
+
+function setMiniMark(id, pass) {
+  const el = document.getElementById(id);
+  el.classList.remove('pass', 'fail');
+  el.classList.add(pass ? 'pass' : 'fail');
+  el.textContent = pass ? '✓' : '✗';
+}
+
+// 통합 호출 (drawAllCharts에서 부름)
+function updateProcessInfoPanel() {
+  updateDissolverPanel();
+  updateQCPanel();
+}
+
+// 공정 시작
+function startProcess() {
+  // 초기화
+  simState.phase = 1;
+  simState.phaseTime = 0;
+  simState.t_sim = 0;
+  simState.D32 = 109.0;
+  simState.hIndex = 0;
+  simState.pbmN = simState.simMode === 'pbm' ? Physics.PBM.initialN(109.0) : null;
+  simState.pbmSpan = 0;
+  simState.dissolver = { dissolution: 0, dispersion: 0, completed: false };
+  simState.history = { t: [], D32: [], mu: [], eps: [], hIndex: [] };
+  simState.dsdSnapshots = [];
+  simState.finalQC = null;
+  simState.running = true;
+  updatePhaseBar();
+  updateProcessInfoPanel();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   메인 루프
+   ═══════════════════════════════════════════════════════════════ */
+let lastTime = performance.now();
+let fpsCounter = { frames: 0, lastUpdate: performance.now() };
+
+function tick() {
+  const now = performance.now();
+  const dt_render = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  controls.update();
+  vessel3D.rotateImpellers(dt_render, simState);
+
+  /* 온도가 set 값에 점진적으로 따라가도록 */
+  const tempLag = 0.02;  // 초당 몇 ℃씩 변화 (가온 속도)
+  if (Math.abs(simState.temp_C - simState.setTemp_C) > 0.05) {
+    simState.temp_C += (simState.setTemp_C - simState.temp_C) * tempLag * dt_render * 5;
+  }
+
+  if (simState.running) {
+    for (let s = 0; s < simState.speedMultiplier; s++) {
+      simState.t_sim += simState.dt_sim;
+      simState.phaseTime += simState.dt_sim;
+
+      // V10 — 자동 모드일 때 단계별 표준 RPM/온도 자동 적용
+      if (simState.autoMode && simState.phase >= 1 && simState.phase <= 5) {
+        const cfg = simState.phaseConfig[simState.phase];
+        simState.homoOmega = cfg.homo;
+        simState.paddleOmega = cfg.paddle;
+        simState.scraperOmega = cfg.scraper;
+        simState.setTemp_C = cfg.setTemp;
+      }
+
+      const sigma = Physics.calcSurfaceTension(formulation);
+      const phi_d = Physics.calcInternalPhase(formulation, simState.emulsionType);
+
+      // V10 v5 — 단계별 D32/H-Index 진화 로직
+      if (simState.phase === 1 || simState.phase === 2) {
+        // [1]·[2] 분산 단계: 단계 진행률(0~1)에 따라 용해도/분산도 100%까지 부드럽게 도달
+        // 분산도가 용해도보다 약간 빠르게 진행 (먼저 퍼진 후 풀림)
+        const duration = simState.phaseDuration[simState.phase];
+        const progress = Math.min(1.0, simState.phaseTime / duration);
+        // ease-out 커브 (초반 빠르게, 후반 천천히)
+        const ease = 1 - Math.pow(1 - progress, 2);
+        simState.dissolver.dispersion  = Math.min(100, ease * 105);   // 분산이 살짝 먼저 도달
+        simState.dissolver.dissolution = Math.min(100, ease * 95);    // 용해는 약간 늦게
+      } else if (simState.phase === 3 || simState.phase === 4) {
+        // [3] 유화 / [4] 1차 냉각+재분산: D32/H-Index 정상 진화
+        const eps_A = Physics.calcEpsilon(simState.homoOmega, vessel3D.currentVessel);
+        if (simState.simMode === 'pbm') {
+          /* ── V11 PBM 정밀 모드 ── DSD 전체를 직접 진화 */
+          if (!simState.pbmN) simState.pbmN = Physics.PBM.initialN(simState.D32);
+          const K = Physics.PBM.paramsFromCondition(simState.thickener, simState.homoOmega);
+          simState.pbmN = Physics.PBM.step(simState.pbmN, simState.dt_sim, eps_A, K);
+          simState.D32    = Physics.PBM.sauterFromN(simState.pbmN);
+          simState.hIndex = Physics.PBM.hIndexFromN(simState.pbmN);
+          simState.pbmSpan = Physics.PBM.spanFromN(simState.pbmN);
+          simState.mu_eff = Physics.calcViscosity(simState.D32, phi_d, simState.temp_C, simState.emulsionType, simState.thickener);
+        } else {
+          /* ── 기존 Calabrese 실시간 기본 모드 (변경 없음) ── */
+          const D_eq = Physics.calcD32Equilibrium(eps_A, sigma, phi_d, simState.temp_C);
+          simState.D32 = Physics.calcD32Evolution(D_eq, simState.dt_sim, simState.D32, eps_A);
+          simState.mu_eff = Physics.calcViscosity(simState.D32, phi_d, simState.temp_C, simState.emulsionType, simState.thickener);
+          simState.hIndex = Physics.calcHomogeneityIndex(simState.D32, eps_A, sigma, phi_d, simState.t_sim);
+        }
+      } else if (simState.phase === 5) {
+        // [5] 2차 냉각: D32 고정, 점도만 온도에 따라 회복
+        simState.mu_eff = Physics.calcViscosity(simState.D32, phi_d, simState.temp_C, simState.emulsionType, simState.thickener);
+      }
+
+      // 히스토리 기록 (3,4,5단계만)
+      if (simState.phase >= 3) {
+        simState.history.t.push(simState.t_sim);
+        simState.history.D32.push(simState.D32);
+        simState.history.mu.push(simState.mu_eff);
+        simState.history.eps.push(Physics.calcEpsilon(simState.homoOmega, vessel3D.currentVessel));
+        simState.history.hIndex.push(simState.hIndex);
+        if (simState.history.t.length > 300) {
+          simState.history.t.shift(); simState.history.D32.shift();
+          simState.history.mu.shift(); simState.history.eps.shift();
+          simState.history.hIndex.shift();
+        }
+      }
+
+      // V10 v5 — 자동 모드 단계 전환: 시간 다 지나면 무조건 다음 단계로
+      if (simState.autoMode && simState.phase >= 1 && simState.phase <= 5) {
+        const duration = simState.phaseDuration[simState.phase];
+        if (simState.phaseTime >= duration) advancePhase();
+      }
+
+      // [5]단계에서 최종 QC 결과 매 tick 업데이트
+      if (simState.phase === 5) {
+        simState.finalQC = Physics.evaluateFinalQuality(
+          simState.D32, simState.hIndex, simState.mu_eff, simState.qcSpec
+        );
+      }
+
+      // ── 5종 가마 모두 시뮬 (페이즈 3,4만) ──
+      if (simState.phase === 3 || simState.phase === 4) {
+        for (const key in simState.vesselsHistory) {
+          const v = VESSELS[key];
+          const hist = simState.vesselsHistory[key];
+          const eps_v = Physics.calcEpsilon(simState.homoOmega, v);
+          const D_eq_v = Physics.calcD32Equilibrium(eps_v, sigma, phi_d, simState.temp_C);
+          const D_imp_factor = v.D_imp / 0.086;
+          const D_eq_corrected = D_eq_v * Math.pow(D_imp_factor, 0.4);
+          const tau_v = 30 / Math.max(eps_v, 0.05);
+          hist.lastD32 = Math.max(15, hist.lastD32 + (D_eq_corrected - hist.lastD32) * simState.dt_sim / tau_v);
+          hist.t.push(simState.t_sim);
+          hist.D32.push(hist.lastD32);
+          if (hist.t.length > 300) {
+            hist.t.shift(); hist.D32.shift();
+          }
+          simState.validationData[key].simulated = hist.lastD32;
+          simState.validationData[key].rpm = simState.homoOmega;
+        }
+      }
+
+      // ── DSD 스냅샷 저장 (3,4단계에서만) ──
+      if (simState.phase === 3 || simState.phase === 4) {
+        const targetSnapshotTimes = [0, 120, 300, 600];
+        for (const tgt of targetSnapshotTimes) {
+          const exists = simState.dsdSnapshots.some(s => Math.abs(s.t - tgt) < simState.dt_sim);
+          if (!exists && Math.abs(simState.t_sim - tgt) < simState.dt_sim * 1.5) {
+            simState.dsdSnapshots.push({
+              t: simState.t_sim,
+              D32: simState.D32,
+              distribution: [],
+              pbmDist: (simState.simMode === 'pbm' && simState.pbmN)
+                ? Physics.PBM.normalizedDist(simState.pbmN) : null,
+            });
+            if (simState.dsdSnapshots.length > 4) simState.dsdSnapshots.shift();
+          }
+        }
+      }
+    }
+    drawAllCharts();
+    updateInfoOverlay();
+    updateValidationTable();
+    updatePhaseBar();
+  }
+
+  vessel3D.updateParticles(dt_render * 60, simState);
+
+  // V10 v4 — 용해조: 단계별 명확한 가동/정지
+  // 1단계(메인만 가동): 용해조는 정지, 입자 가득
+  // 2단계(용해조만 가동): 입자가 활발히 움직이며 점점 사라짐
+  // 3~5단계: 용해 완료 상태로 정지 (입자 거의 없음)
+  let dissPct, dispPct;
+  const cfg = simState.phaseConfig[simState.phase];
+  if (cfg && cfg.dissolverActive) {
+    // 2단계: 용해조에서 활발히 분산 중
+    dissPct = simState.dissolver.dissolution;
+    dispPct = simState.dissolver.dispersion;
+  } else if (simState.phase === 0 || simState.phase === 1) {
+    // 대기 / 1단계: 용해조 정지, 입자 가득
+    dissPct = 0; dispPct = 3;  // 거의 정지 (살짝만 흔들)
+  } else {
+    // 3단계 이후: 용해 완료
+    dissPct = 95; dispPct = 0;
+  }
+  dissolver3D.update(dt_render, dissPct, dispPct);
+
+  renderer.render(scene, camera);
+
+  fpsCounter.frames++;
+  if (now - fpsCounter.lastUpdate > 500) {
+    const fps = (fpsCounter.frames / ((now - fpsCounter.lastUpdate) / 1000)).toFixed(0);
+    document.getElementById('fps-display').textContent = fps + ' FPS';
+    fpsCounter.frames = 0;
+    fpsCounter.lastUpdate = now;
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  chartD32.resize();
+  chartDsd.resize();
+}
+window.addEventListener('resize', resize);
+resize();
+tick();
+updateInfoOverlay();
+updateFormulationDisplay();
+updateValidationTable();
+drawAllCharts();
+updatePhaseBar();
+updateProcessInfoPanel();
+</script>
+
+</body>
+</html>
