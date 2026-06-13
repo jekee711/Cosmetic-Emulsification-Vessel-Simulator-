@@ -1424,8 +1424,8 @@ const Physics = {
      - entropy 낮음(분포 좁음) → 균일 → 높은 점수 */
   calcHomogeneityIndex(D32_um, eps, sigma_mNm, phi_d, t_sim) {
     const H = this.calcShannonEntropy(D32_um, eps, sigma_mNm, phi_d, t_sim);
-    // entropy 1.5(매우 좁음) → 100%, 3.5(매우 넓음) → 0% 로 매핑
-    const H_min = 1.5, H_max = 3.5;
+    // entropy 1.5(매우 좁음) → 100%, 0% 앵커 = 균등분포 max = ln(50) ≈ 3.91
+    const H_min = 1.5, H_max = Math.log(50);
     const score = 100 * (1 - (H - H_min) / (H_max - H_min));
     return Math.max(0, Math.min(100, score));
   },
@@ -1681,8 +1681,8 @@ const Physics = {
         if (p > 1e-12) H -= p * Math.log(p);
       }
       // entropy → 0~100% (분포 좁을수록 높은 점수)
-      // 65노드 균등분포 max = ln(65) ≈ 4.17
-      const H_min = 1.6, H_max = 3.6;
+      // 0% 앵커 = 격자 최대 엔트로피(균등분포) = ln(NODES) ≈ ln(65) ≈ 4.17
+      const H_min = 1.6, H_max = Math.log(this.NODES);
       const score = 100 * (1 - (H - H_min) / (H_max - H_min));
       return Math.max(0, Math.min(100, score));
     },
